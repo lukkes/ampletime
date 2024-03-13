@@ -125,18 +125,34 @@
       }
     },
     //===================================================================================
+    // ===== INSERT TEXT ====
+    //===================================================================================
+    insertText: {
+      "Start This Task": {
+        async run(app) {
+          try {
+            await this._startTask(app);
+          } catch (err) {
+            console.log(err);
+            await app.alert(err);
+          }
+        },
+        async check(app) {
+          if (app.context.taskUUID)
+            return true;
+        }
+      }
+    },
+    //===================================================================================
     // ==== MAIN ENTRY POINTS ====
     //===================================================================================
-    /*
-     * Starts a new task. Adds a new row in the dashboard. Will prompt to stop existing tasks if any.
-     */
-    async _start(app) {
-      console.log(`_start()`);
+    async _preStart(app) {
+      console.log("_preStart()");
       let dash = await this._ensureDashboardNote(app);
-      let isTaskRunning = await this._isTaskRunning(app, dash);
+      let isTaskRunning = await _isTaskRunning(app, dash);
       console.log(`Task running: ${isTaskRunning}`);
       if (isTaskRunning) {
-        let runningTaskName = this._getLinkText(isTaskRunning);
+        let runningTaskName = _getLinkText(isTaskRunning);
         let result = await app.prompt(
           `${runningTaskName} is already running. Would you like to stop it first?`,
           {
@@ -156,19 +172,25 @@
           return;
         }
         console.log(`Stopping current task...`);
-        this._stopTask(app, dash);
+        await _stopTask(app, dash);
       }
+    },
+    /*
+     * Starts a new task. Adds a new row in the dashboard. Will prompt to stop existing tasks if any.
+     */
+    async _start(app) {
+      let dash = await this._preStart(app);
       let target = await this._promptTarget(app);
       console.log(`Starting Task ${target.name}...`);
-      let currentTime = await this._getCurrentTime();
-      await this._logStartTime(app, dash, target, currentTime);
+      let currentTime = await _getCurrentTime();
+      await _logStartTime(app, dash, target, currentTime);
       let startDate = /* @__PURE__ */ new Date();
       startDate.setHours(0, 0, 0, 0);
       let endDate = new Date(startDate);
       endDate.setHours(23, 59, 59, 999);
-      let runningTaskDuration = await this._getTaskDurations(
+      let runningTaskDuration = await _getTaskDurations(
         app,
-        this._makeNoteLink(target),
+        _makeNoteLink(target),
         startDate,
         endDate
       );
@@ -193,21 +215,21 @@
     async _stop(app) {
       console.log(`_stop(app)`);
       let dash = await this._ensureDashboardNote(app);
-      let isTaskRunning = await this._isTaskRunning(app, dash);
+      let isTaskRunning = await _isTaskRunning(app, dash);
       if (!isTaskRunning) {
         console.log("No task is running at the moment.");
         await app.alert(`No task is running at the moment.`);
         return;
       }
       console.log(`Stopping current task...`);
-      await this._stopTask(app, dash);
+      await _stopTask(app, dash);
       let startDate = /* @__PURE__ */ new Date();
       startDate.setHours(0, 0, 0, 0);
       let endDate = new Date(startDate);
       endDate.setHours(23, 59, 59, 999);
-      let runningTaskDuration = await this._getTaskDurations(app, isTaskRunning, startDate, endDate);
+      let runningTaskDuration = await _getTaskDurations(app, isTaskRunning, startDate, endDate);
       let alertAction = await app.alert(
-        `${this._getLinkText(isTaskRunning)} stopped successfully. Logged today: ${runningTaskDuration[0]["Duration"]}`,
+        `${_getLinkText(isTaskRunning)} stopped successfully. Logged today: ${runningTaskDuration[0]["Duration"]}`,
         {
           actions: [{ label: "Visit Dashboard", icon: "assignment" }]
         }
@@ -215,7 +237,7 @@
       if (alertAction == 0) {
         app.navigate(`https://www.amplenote.com/notes/${dash.uuid}`);
       }
-      console.log(`${this._getLinkText(isTaskRunning)} stopped successfully. Logged today: ${runningTaskDuration[0]["Duration"]}`);
+      console.log(`${_getLinkText(isTaskRunning)} stopped successfully. Logged today: ${runningTaskDuration[0]["Duration"]}`);
       return true;
     },
     async _generateReport(app, reportType) {
@@ -255,13 +277,13 @@
       }
       startOfDay.setHours(0, 0, 0, 0);
       endOfDay.setHours(23, 59, 59, 999);
-      let taskDurations = await this._getTaskDurations(app, null, startOfDay, endOfDay);
+      let taskDurations = await _getTaskDurations(app, null, startOfDay, endOfDay);
       if (taskDurations.length == 0) {
         console.log(`Nothing logged ${reportType}.`);
         await app.alert(`Nothing logged ${reportType}.`);
         return;
       }
-      reportTitle = `${reportTitle} ${this._getFormattedDate(startOfDay)}`;
+      reportTitle = `${reportTitle} ${_getFormattedDate(startOfDay)}`;
       let resultsUUID = await app.createNote(`${reportTitle}`, [reportTag]);
       let resultsHandle = await app.findNote({ uuid: resultsUUID });
       console.log(`Created results note with UUID ${resultsUUID}`);
@@ -270,22 +292,22 @@
       for (let i = 0; i < taskDurations.length; i++) {
         let fileURL2 = await app.attachNoteMedia(
           resultsHandle,
-          await this._createLegendSquare(this.options.colors[i])
+          await _createLegendSquare(this.options.colors[i])
         );
         legendSquares.push(`![](${fileURL2})`);
       }
-      taskDurations = this._insertColumnInMemory(
+      taskDurations = _insertColumnInMemory(
         taskDurations,
         "Color",
         legendSquares
       );
       console.log(taskDurations);
-      let resultsTable = this._dictToMarkdownTable(taskDurations);
+      let resultsTable = _dictToMarkdownTable(taskDurations);
       console.log(resultsTable);
       console.log(`Inserting results in report note...`);
       await app.insertNoteContent(resultsHandle, resultsTable);
       console.log(`Generating QuickChart...`);
-      let pieDataURL = await this._generatePie(taskDurations);
+      let pieDataURL = await _generatePie(taskDurations);
       const fileURL = await app.attachNoteMedia(resultsHandle, pieDataURL);
       await app.insertNoteContent(resultsHandle, `![](${fileURL})`);
       let alertAction = await app.alert(
@@ -300,140 +322,10 @@
       console.log(`Success!`);
       return true;
     },
-    //===================================================================================
-    // ==== TASK MANIPULATION ====
-    //===================================================================================
-    /*
-     * Returns a list of objects with properties "Task Name" and "Duration"
-     * Computes the total duration of each task within given dates.
-     * Optionally filters to only tasks that match "taskName", which must be a full MD link.
-     */
-    async _getTaskDurations(app, taskName, startDate, endDate) {
-      console.log(`_getTaskDurations(app, ${taskName}, ${startDate}, ${endDate})`);
-      let dash = await this._ensureDashboardNote(app);
-      let content = await app.getNoteContent(dash);
-      let tableDict = this._markdownTableToDict(content);
-      console.log(tableDict);
-      let entries = this._getEntriesWithinDates(tableDict, taskName, startDate, endDate);
-      console.log(entries);
-      if (!entries)
-        return;
-      let taskDurations = this._calculateTaskDurations(entries);
-      console.log(taskDurations);
-      return taskDurations;
-    },
-    //===================================================================================
-    /*
-     * Returns the name of the task that is running (usually a MD link to a note) or false otherwise
-     */
-    async _isTaskRunning(app, dash) {
-      console.log(`_isTaskRunning(${dash})`);
-      let content = await app.getNoteContent(dash);
-      const table = this._markdownTableToDict(content);
-      console.log(table);
-      if (!table)
-        return false;
-      const runningTask = table.find((row) => row["Task Name"] && row["Start Time"] && !row["End Time"]);
-      console.log(runningTask);
-      if (Boolean(runningTask))
-        return runningTask["Task Name"];
-      return false;
-    },
-    //=================================================================================== 
-    /* 
-     * Creates new row in the dashboard table, adds "Task Name" and "Start Time"
-     */
-    async _logStartTime(app, dash, target, currentTime) {
-      console.log(`_logStartTime(${dash}, ${target}, ${currentTime})`);
-      let content = await app.getNoteContent(dash);
-      let tableDict = this._markdownTableToDict(content);
-      console.log(tableDict);
-      tableDict = this._insertRowToDict(tableDict, target, currentTime);
-      console.log(tableDict);
-      let updatedTableMarkdown = this._dictToMarkdownTable(tableDict);
-      console.log(updatedTableMarkdown);
-      const section = { heading: { text: this.options.sectionTitleDashboardTimeEntries } };
-      await app.replaceNoteContent(dash, updatedTableMarkdown, { section });
-      return true;
-    },
-    //===================================================================================
-    /*
-     * Stops a task by adding "Stop Time" column to the dashboard table
-     */
-    async _stopTask(app, dash) {
-      let content = await app.getNoteContent(dash);
-      let tableDict = this._markdownTableToDict(content);
-      tableDict = this._addEndTimeToDict(tableDict, await this._getCurrentTime());
-      let updatedTableMarkdown = this._dictToMarkdownTable(tableDict);
-      const section = { heading: { text: this.options.sectionTitleDashboardTimeEntries } };
-      await app.replaceNoteContent(dash, updatedTableMarkdown, { section });
-      return true;
-    },
-    //===================================================================================
-    /*
-     * Gets all tasks that have entries stopping within given dates.
-     * Returns a list of objects with properties "Task Name", "Start Time", "Stop Time"
-     * Optionally filters to only task names matching "taskName", which must be a full MD link.
-     */
-    _getEntriesWithinDates(tableDict, taskName, startDate, endDate) {
-      console.log(`_getEntriesWithinDates(${tableDict}, ${taskName}, ${startDate}, ${endDate}`);
-      console.log(startDate);
-      console.log(endDate);
-      let entries = tableDict.filter((row) => {
-        let endTime = new Date(row["End Time"]);
-        console.log(new Date(row["End Time"]));
-        return endTime >= startDate && endTime <= endDate;
-      });
-      if (taskName)
-        entries = entries.filter((row) => {
-          return row["Task Name"] === taskName;
-        });
-      return entries;
-    },
-    //===================================================================================  
-    /*
-     * Given a list of objects with "Task Name", "Start Time" and "Stop Time", will return
-     * the total duration for each task.
-     */
-    _calculateTaskDurations(entries) {
-      console.log(`_calculateTaskDurations(${entries})`);
-      let taskDurations = {};
-      entries.forEach((entry) => {
-        let taskName = entry["Task Name"];
-        let duration = this._calculateDuration(entry["Start Time"], entry["End Time"]);
-        if (taskName in taskDurations) {
-          taskDurations[taskName] = this._addDurations(taskDurations[taskName], duration);
-        } else {
-          taskDurations[taskName] = duration;
-        }
-      });
-      let sortedTasks = Object.entries(taskDurations).sort((a, b) => {
-        let aDurationInSeconds = this._durationToSeconds(a[1]);
-        let bDurationInSeconds = this._durationToSeconds(b[1]);
-        return bDurationInSeconds - aDurationInSeconds;
-      });
-      let sortedTaskDurations = sortedTasks.map((task) => {
-        return {
-          "Task Name": task[0],
-          "Duration": task[1]
-        };
-      });
-      return sortedTaskDurations;
-    },
-    //===================================================================================
-    /*
-     * Adds the current time to every row with no End Time.
-     * Returns the new dictionary.
-     */
-    _addEndTimeToDict(tableDict, currentTime) {
-      console.log(`_addEndTimeToDict(${tableDict}, ${currentTime})`);
-      for (let row of tableDict) {
-        if (!row["End Time"]) {
-          row["End Time"] = currentTime;
-          break;
-        }
-      }
-      return tableDict;
+    async _startTask(app) {
+      console.log("_startTask");
+      await this._preStart(app);
+      let task = await app.getTask(app.context.taskUUID);
     },
     //===================================================================================
     // ==== DASHBOARD MANIPULATION ====
@@ -469,7 +361,8 @@
 `,
           { atEnd: true }
         );
-        let tableHeader = await this._createTableHeader([
+        let tableHeader = await _createTableHeader([
+          "Note Name",
           "Task Name",
           "Start Time",
           "End Time"
@@ -493,138 +386,6 @@
       return noteHandle;
     },
     //===================================================================================
-    // ==== REPORT GENERATION ====
-    //===================================================================================
-    /*
-     * Returns a data URL pointing to a square PNG of a given "color".
-     * Used in the table included in the report.
-     */
-    async _createLegendSquare(color) {
-      console.log(`_createLegendSquare(${color})`);
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      const size = this.options.legendSquareSize;
-      canvas.width = size;
-      canvas.height = size;
-      ctx.fillStyle = color;
-      ctx.fillRect(0, 0, size, size);
-      console.log(canvas);
-      function canvasToBlob(canvas2) {
-        return new Promise((resolve) => {
-          canvas2.toBlob((blob2) => {
-            resolve(blob2);
-          }, "image/png");
-        });
-      }
-      ;
-      console.log(canvasToBlob);
-      let blob = await canvasToBlob(canvas);
-      console.log(blob);
-      return await this._dataURLFromBlob(blob);
-    },
-    //===================================================================================
-    /*
-     * Generates a chart using QuickChart. Gets a list of objects with "Color", "Task Name" and "Duration"
-     * Returns a data URL pointing to the chart image.
-     */
-    async _generatePie(taskDurations) {
-      console.log(`generatePie(${taskDurations})`);
-      const labels = taskDurations.map((task) => this._getLinkText(task["Task Name"]));
-      console.log(labels);
-      const data = taskDurations.map((task) => this._durationToSeconds(task["Duration"]));
-      console.log(data);
-      const chart = new QuickChart();
-      chart.setVersion("4");
-      chart.setWidth(500);
-      chart.setHeight(500);
-      chart.setConfig({
-        type: "pie",
-        data: {
-          labels,
-          datasets: [{ data, backgroundColor: this.options.colors }]
-        },
-        options: {
-          plugins: {
-            legend: {
-              // Hide the legend because it's too large & ugly
-              display: false
-            },
-            // On the chart itself, show percentages instead of durations
-            // Only show percentages if larger than a certain value, to avoid jankiness
-            datalabels: {
-              display: true,
-              formatter: (value, ctx) => {
-                let sum = 0;
-                let dataArr = ctx.chart.data.datasets[0].data;
-                dataArr.map((data2) => {
-                  sum += data2;
-                });
-                let percentage = (value * 100 / sum).toFixed(0);
-                if (percentage < 7)
-                  return "";
-                return percentage + "%";
-              },
-              color: "#fff"
-            }
-          }
-        }
-      });
-      console.log(chart.getUrl());
-      let response = await fetch(chart.getUrl());
-      let blob = await response.blob();
-      let dataURL = await this._dataURLFromBlob(blob);
-      return dataURL;
-    },
-    //===================================================================================
-    // ==== DATA STRUCTURES ====
-    //===================================================================================
-    /*
-     * Inserts a new object inside the main data structure used for holding time entries
-     */
-    _insertRowToDict(tableDict, target, currentTime) {
-      console.log(`_insertRowToDict(${tableDict}, ${target}, ${currentTime})`);
-      const newRow = {
-        "Task Name": `${this._makeNoteLink(target)}`,
-        "Start Time": currentTime,
-        "End Time": ""
-      };
-      tableDict.unshift(newRow);
-      return tableDict;
-    },
-    //=================================================================================== 
-    /*
-     * Get a data URL from a blob
-     */
-    _dataURLFromBlob(blob) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          resolve(event.target.result);
-        };
-        reader.onerror = function(event) {
-          reader.abort();
-          reject(event.target.error);
-        };
-        reader.readAsDataURL(blob);
-      });
-    },
-    //=================================================================================== 
-    /*
-     * Add a new column and fill as many values on that column in an existing table
-     * "name" is a String
-     * "data" is an array of values
-     * "memory" is the dictionary to add to
-     * Returns the new dictionary
-     */
-    _insertColumnInMemory(memory, name, data) {
-      console.log(`_insertColumnInMemory(${memory}, ${name}, ${data})`);
-      console.log(memory);
-      return memory.map((obj, index) => ({
-        [name]: data[index],
-        ...obj
-      }));
-    },
-    //=================================================================================== 
     // ==== AN UX ====
     //=================================================================================== 
     async _promptTarget(app) {
@@ -638,156 +399,7 @@
       );
       return result;
     },
-    //=================================================================================== 
-    // ==== TIME OPS ====
-    //=================================================================================== 
-    msToTime(duration) {
-      let seconds = Math.floor(duration / 1e3 % 60), minutes = Math.floor(duration / (1e3 * 60) % 60), hours = Math.floor(duration / (1e3 * 60 * 60) % 24);
-      hours = hours < 10 ? "0" + hours : hours;
-      minutes = minutes < 10 ? "0" + minutes : minutes;
-      seconds = seconds < 10 ? "0" + seconds : seconds;
-      return hours + ":" + minutes + ":" + seconds;
-    },
     //===================================================================================
-    async _getCurrentTime() {
-      var timezoneOffset = (/* @__PURE__ */ new Date()).getTimezoneOffset() * 6e4;
-      var localISOTime = new Date(Date.now() - timezoneOffset).toISOString().slice(0, -1);
-      return localISOTime;
-    },
-    //=================================================================================== 
-    _durationToSeconds(duration) {
-      let [hours, minutes, seconds] = duration.split(":").map(Number);
-      let totalSeconds = hours * 3600 + minutes * 60 + seconds;
-      console.log(totalSeconds);
-      return totalSeconds;
-    },
-    //=================================================================================== 
-    _calculateDuration(startTime, endTime) {
-      console.log(`_calculateDuration(${startTime}, ${endTime})`);
-      let start = new Date(startTime);
-      let end = new Date(endTime);
-      let durationMillis = end - start;
-      let hours = Math.floor(durationMillis / 36e5);
-      let minutes = Math.floor((durationMillis - hours * 36e5) / 6e4);
-      let seconds = Math.floor((durationMillis - hours * 36e5 - minutes * 6e4) / 1e3);
-      hours = hours.toString().padStart(2, "0");
-      minutes = minutes.toString().padStart(2, "0");
-      seconds = seconds.toString().padStart(2, "0");
-      return `${hours}:${minutes}:${seconds}`;
-    },
-    //=================================================================================== 
-    _addDurations(duration1, duration2) {
-      console.log(`_addDurations(${duration1}, ${duration2})`);
-      const seconds1 = this._durationToSeconds(duration1);
-      const seconds2 = this._durationToSeconds(duration2);
-      const totalSeconds = seconds1 + seconds2;
-      const totalDuration = this._secondsToDuration(totalSeconds);
-      return totalDuration;
-    },
-    //=================================================================================== 
-    _secondsToDuration(seconds) {
-      const hours = Math.floor(seconds / 3600);
-      const minutes = Math.floor(seconds % 3600 / 60);
-      const remainingSeconds = seconds % 60;
-      return [hours, minutes, remainingSeconds].map((v) => v < 10 ? "0" + v : v).join(":");
-    },
-    //=================================================================================== 
-    _getFormattedDate(date) {
-      const monthNames = [
-        "January",
-        "February",
-        "March",
-        "April",
-        "May",
-        "June",
-        "July",
-        "August",
-        "September",
-        "October",
-        "November",
-        "December"
-      ];
-      const month = monthNames[date.getMonth()];
-      const day = date.getDate();
-      let daySuffix;
-      if (day > 3 && day < 21)
-        daySuffix = "th";
-      else {
-        switch (day % 10) {
-          case 1:
-            daySuffix = "st";
-            break;
-          case 2:
-            daySuffix = "nd";
-            break;
-          case 3:
-            daySuffix = "rd";
-            break;
-          default:
-            daySuffix = "th";
-        }
-      }
-      const year = date.getFullYear();
-      return `${month} ${day}${daySuffix}, ${year}`;
-    },
-    //=================================================================================== 
-    // ==== MARKDOWN HELPERS ====
-    //=================================================================================== 
-    async _createTableHeader(columns) {
-      console.log(`_createTableHeader(${columns}`);
-      const header = columns.join(" | ");
-      const separator = columns.map(() => "-").join(" | ");
-      const tableHeader = `| ${header} |
-| ${separator} |`;
-      return tableHeader;
-    },
-    //=================================================================================== 
-    _markdownTableToDict(content) {
-      console.log(`_markdownTableToDict(${content})`);
-      const tableRegex = /\|(?:.*?)\n\|(?:.*?)\n\|(.*?)\n((?:\|(.*?)\n)*)/s;
-      const tableMatch = content.match(tableRegex);
-      if (!tableMatch)
-        return null;
-      const headers = tableMatch[1].split("|").map((header) => header.trim()).filter((header) => header);
-      const rows = tableMatch[2].split("\n").filter((row) => row.trim() !== "");
-      const table = rows.map((row) => {
-        const cells = row.split("|").map((cell) => cell.trim()).filter((cell) => cell);
-        const rowObj = {};
-        headers.forEach((header, i) => {
-          rowObj[header] = cells[i] || null;
-        });
-        return rowObj;
-      });
-      return table;
-    },
-    //=================================================================================== 
-    _dictToMarkdownTable(tableDict) {
-      console.log(`_dictToMarkdownTable(${tableDict})`);
-      console.log(tableDict);
-      console.log(tableDict[0]);
-      console.log(Object.keys(tableDict[0]));
-      const headers = Object.keys(tableDict[0]);
-      const headerRow = `| ${headers.join(" | ")} |`;
-      const separator = `| ${headers.map(() => "-").join(" | ")} |`;
-      const dataRows = tableDict.map((row) => {
-        const cells = headers.map((header) => row[header]);
-        return `| ${cells.join(" | ")} |`;
-      }).join("\n");
-      return `${headerRow}
-${separator}
-${dataRows}`;
-    },
-    //=================================================================================== 
-    _getLinkText(text) {
-      const regex = /\[(.*?)\]/;
-      const match = regex.exec(text);
-      return match ? match[1] : null;
-    },
-    //=================================================================================== 
-    _makeNoteLink(target) {
-      return `[${target.name}](https://www.amplenote.com/notes/${target.uuid})`;
-    },
-    //=================================================================================== 
     // ==== MISC ====
     //=================================================================================== 
     async _loadScript(url) {
