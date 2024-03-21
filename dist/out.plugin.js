@@ -1,4 +1,328 @@
 (() => {
+  // lib/markdown.js
+  async function _createTableHeader(columns) {
+    console.log(`_createTableHeader(${columns}`);
+    const header = columns.join(" | ");
+    const separator = columns.map(() => "-").join(" | ");
+    const tableHeader = `| ${header} |
+| ${separator} |`;
+    return tableHeader;
+  }
+  function _markdownTableToDict(content) {
+    console.log(`_markdownTableToDict(${content})`);
+    const tableRegex = /\|(?:.+?)\|$/gm;
+    const tableMatch = content.match(tableRegex);
+    if (!tableMatch)
+      return [];
+    const headers = tableMatch[0].split("|").map((header) => header.trim()).filter((header) => header);
+    const rows = tableMatch[2].split("\n").filter((row) => row.trim() !== "");
+    const table = rows.map((row) => {
+      const cells = row.split("|").map((cell) => cell.trim()).filter((cell) => cell);
+      const rowObj = {};
+      headers.forEach((header, i) => {
+        rowObj[header] = cells[i] || null;
+      });
+      return rowObj;
+    });
+    return table;
+  }
+  function _dictToMarkdownTable(tableDict) {
+    console.log(`_dictToMarkdownTable(${tableDict})`);
+    console.log(tableDict);
+    console.log(tableDict[0]);
+    console.log(Object.keys(tableDict[0]));
+    const headers = Object.keys(tableDict[0]);
+    const headerRow = `| ${headers.join(" | ")} |`;
+    const separator = `| ${headers.map(() => "-").join(" | ")} |`;
+    const dataRows = tableDict.map((row) => {
+      const cells = headers.map((header) => row[header]);
+      return `| ${cells.join(" | ")} |`;
+    }).join("\n");
+    return `${headerRow}
+${separator}
+${dataRows}`;
+  }
+  function _getLinkText(text) {
+    const regex = /\[(.*?)\]/;
+    const match = regex.exec(text);
+    return match ? match[1] : null;
+  }
+  function _makeNoteLink(target) {
+    return `[${target.name}](https://www.amplenote.com/notes/${target.uuid})`;
+  }
+
+  // lib/data-structures.js
+  function _insertRowToDict(tableDict, target, currentTime) {
+    console.log(`_insertRowToDict(${tableDict}, ${target}, ${currentTime})`);
+    const newRow = {
+      "Task Name": `${_makeNoteLink(target)}`,
+      "Start Time": currentTime,
+      "End Time": ""
+    };
+    tableDict.unshift(newRow);
+    return tableDict;
+  }
+  function _dataURLFromBlob(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        resolve(event.target.result);
+      };
+      reader.onerror = function(event) {
+        reader.abort();
+        reject(event.target.error);
+      };
+      reader.readAsDataURL(blob);
+    });
+  }
+  function _insertColumnInMemory(memory, name, data) {
+    console.log(`_insertColumnInMemory(${memory}, ${name}, ${data})`);
+    console.log(memory);
+    return memory.map((obj, index) => ({
+      [name]: data[index],
+      ...obj
+    }));
+  }
+
+  // lib/date-time.js
+  async function _getCurrentTime() {
+    var timezoneOffset = (/* @__PURE__ */ new Date()).getTimezoneOffset() * 6e4;
+    return _getISOStringFromDate(new Date(Date.now() - timezoneOffset));
+  }
+  function _getISOStringFromDate(dateObject) {
+    return dateObject.toISOString().slice(0, -1);
+  }
+  function _durationToSeconds2(duration) {
+    let [hours, minutes, seconds] = duration.split(":").map(Number);
+    let totalSeconds = hours * 3600 + minutes * 60 + seconds;
+    console.log(totalSeconds);
+    return totalSeconds;
+  }
+  function _calculateDuration(startTime, endTime) {
+    console.log(`_calculateDuration(${startTime}, ${endTime})`);
+    let start = new Date(startTime);
+    let end = new Date(endTime);
+    let durationMillis = end - start;
+    let hours = Math.floor(durationMillis / 36e5);
+    let minutes = Math.floor((durationMillis - hours * 36e5) / 6e4);
+    let seconds = Math.floor((durationMillis - hours * 36e5 - minutes * 6e4) / 1e3);
+    hours = hours.toString().padStart(2, "0");
+    minutes = minutes.toString().padStart(2, "0");
+    seconds = seconds.toString().padStart(2, "0");
+    return `${hours}:${minutes}:${seconds}`;
+  }
+  function _getFormattedDate(date) {
+    const monthNames = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December"
+    ];
+    const month = monthNames[date.getMonth()];
+    const day = date.getDate();
+    let daySuffix;
+    if (day > 3 && day < 21)
+      daySuffix = "th";
+    else {
+      switch (day % 10) {
+        case 1:
+          daySuffix = "st";
+          break;
+        case 2:
+          daySuffix = "nd";
+          break;
+        case 3:
+          daySuffix = "rd";
+          break;
+        default:
+          daySuffix = "th";
+      }
+    }
+    const year = date.getFullYear();
+    return `${month} ${day}${daySuffix}, ${year}`;
+  }
+
+  // lib/tasks.js
+  async function _getTaskDurations(app, dash, taskName, startDate, endDate) {
+    console.log(`_getTaskDurations(app, ${taskName}, ${startDate}, ${endDate})`);
+    let content = await app.getNoteContent(dash);
+    let tableDict = _markdownTableToDict(content);
+    console.log(tableDict);
+    let entries = _getEntriesWithinDates(tableDict, taskName, startDate, endDate);
+    console.log(entries);
+    if (!entries)
+      return;
+    let taskDurations = _calculateTaskDurations(entries);
+    console.log(taskDurations);
+    return taskDurations;
+  }
+  async function _isTaskRunning(app, dash) {
+    console.log(`_isTaskRunning(${dash})`);
+    let content = await app.getNoteContent(dash);
+    const table = _markdownTableToDict(content);
+    console.log(table);
+    if (!table)
+      return false;
+    const runningTask = table.find((row) => row["Task Name"] && row["Start Time"] && !row["End Time"]);
+    console.log(runningTask);
+    if (Boolean(runningTask))
+      return runningTask["Task Name"];
+    return false;
+  }
+  async function _logStartTime(app, dash, target, currentTime, options) {
+    console.log(`_logStartTime(${dash}, ${target}, ${currentTime})`);
+    let content = await app.getNoteContent(dash);
+    let tableDict = _markdownTableToDict(content);
+    console.log(tableDict);
+    tableDict = _insertRowToDict(tableDict, target, currentTime);
+    console.log(tableDict);
+    let updatedTableMarkdown = _dictToMarkdownTable(tableDict);
+    console.log(updatedTableMarkdown);
+    const section = { heading: { text: options.sectionTitleDashboardTimeEntries } };
+    await app.replaceNoteContent(dash, updatedTableMarkdown, { section });
+    return true;
+  }
+  async function _stopTask(app, dash, options) {
+    let content = await app.getNoteContent(dash);
+    let tableDict = _markdownTableToDict(content);
+    tableDict = _addEndTimeToDict(tableDict, await _getCurrentTime());
+    let updatedTableMarkdown = _dictToMarkdownTable(tableDict);
+    const section = { heading: { text: options.sectionTitleDashboardTimeEntries } };
+    await app.replaceNoteContent(dash, updatedTableMarkdown, { section });
+    return true;
+  }
+  function _getEntriesWithinDates(tableDict, taskName, startDate, endDate) {
+    console.log(`_getEntriesWithinDates(${tableDict}, ${taskName}, ${startDate}, ${endDate}`);
+    console.log(startDate);
+    console.log(endDate);
+    let entries = tableDict.filter((row) => {
+      let endTime = new Date(row["End Time"]);
+      console.log(new Date(row["End Time"]));
+      return endTime >= startDate && endTime <= endDate;
+    });
+    if (taskName)
+      entries = entries.filter((row) => {
+        return row["Task Name"] === taskName;
+      });
+    return entries;
+  }
+  function _calculateTaskDurations(entries) {
+    console.log(`_calculateTaskDurations(${entries})`);
+    let taskDurations = {};
+    entries.forEach((entry) => {
+      let taskName = entry["Task Name"];
+      let duration = _calculateDuration(entry["Start Time"], entry["End Time"]);
+      if (taskName in taskDurations) {
+        taskDurations[taskName] = _addDurations(taskDurations[taskName], duration);
+      } else {
+        taskDurations[taskName] = duration;
+      }
+    });
+    let sortedTasks = Object.entries(taskDurations).sort((a, b) => {
+      let aDurationInSeconds = _durationToSeconds(a[1]);
+      let bDurationInSeconds = _durationToSeconds(b[1]);
+      return bDurationInSeconds - aDurationInSeconds;
+    });
+    let sortedTaskDurations = sortedTasks.map((task) => {
+      return {
+        "Task Name": task[0],
+        "Duration": task[1]
+      };
+    });
+    return sortedTaskDurations;
+  }
+  function _addEndTimeToDict(tableDict, currentTime) {
+    console.log(`_addEndTimeToDict(${tableDict}, ${currentTime})`);
+    for (let row of tableDict) {
+      if (!row["End Time"]) {
+        row["End Time"] = currentTime;
+        break;
+      }
+    }
+    return tableDict;
+  }
+
+  // lib/reports.js
+  async function _createLegendSquare(color, options) {
+    console.log(`_createLegendSquare(${color})`);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const size = options.legendSquareSize;
+    canvas.width = size;
+    canvas.height = size;
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, size, size);
+    console.log(canvas);
+    function canvasToBlob(canvas2) {
+      return new Promise((resolve) => {
+        canvas2.toBlob((blob2) => {
+          resolve(blob2);
+        }, "image/png");
+      });
+    }
+    ;
+    console.log(canvasToBlob);
+    let blob = await canvasToBlob(canvas);
+    console.log(blob);
+    return await _dataURLFromBlob(blob);
+  }
+  async function _generatePie(taskDurations, options) {
+    console.log(`generatePie(${taskDurations})`);
+    const labels = taskDurations.map((task) => _getLinkText(task["Task Name"]));
+    console.log(labels);
+    const data = taskDurations.map((task) => _durationToSeconds2(task["Duration"]));
+    console.log(data);
+    const chart = new QuickChart();
+    chart.setVersion("4");
+    chart.setWidth(500);
+    chart.setHeight(500);
+    chart.setConfig({
+      type: "pie",
+      data: {
+        labels,
+        datasets: [{ data, backgroundColor: options.colors }]
+      },
+      options: {
+        plugins: {
+          legend: {
+            // Hide the legend because it's too large & ugly
+            display: false
+          },
+          // On the chart itself, show percentages instead of durations
+          // Only show percentages if larger than a certain value, to avoid jankiness
+          datalabels: {
+            display: true,
+            formatter: (value, ctx) => {
+              let sum = 0;
+              let dataArr = ctx.chart.data.datasets[0].data;
+              dataArr.map((data2) => {
+                sum += data2;
+              });
+              let percentage = (value * 100 / sum).toFixed(0);
+              if (percentage < 7)
+                return "";
+              return percentage + "%";
+            },
+            color: "#fff"
+          }
+        }
+      }
+    });
+    console.log(chart.getUrl());
+    let response = await fetch(chart.getUrl());
+    let blob = await response.blob();
+    let dataURL = await _dataURLFromBlob(blob);
+    return dataURL;
+  }
+
   // lib/plugin.js
   var plugin = {
     options: {
@@ -52,8 +376,9 @@
         "#ECF0F1"
         // Clouds (Grey)
       ],
-      legendSquareSize: 45
+      legendSquareSize: 45,
       // Size in pixels for the colored square in the reports table
+      alwaysStopRunningTask: false
     },
     //===================================================================================
     // ===== APP OPTIONS ====
@@ -153,43 +478,51 @@
       console.log(`Task running: ${isTaskRunning}`);
       if (isTaskRunning) {
         let runningTaskName = _getLinkText(isTaskRunning);
-        let result = await app.prompt(
-          `${runningTaskName} is already running. Would you like to stop it first?`,
-          {
-            inputs: [
-              {
-                type: "radio",
-                options: [
-                  { label: "Stop current task", value: true },
-                  { label: "Keep current task (and cancel)", value: false }
-                ]
-              }
-            ]
+        if (this.options.alwaysStopRunningTask) {
+          await _stopTask(app, dash, this.options);
+        } else {
+          let result = await app.prompt(
+            `${runningTaskName} is already running. Would you like to stop it first?`,
+            {
+              inputs: [
+                {
+                  type: "radio",
+                  options: [
+                    { label: "Stop current task", value: true },
+                    { label: "Keep current task (and cancel)", value: false }
+                  ]
+                }
+              ]
+            }
+          );
+          if (!result) {
+            console.log("Cancelling...");
+            return;
           }
-        );
-        if (!result) {
-          console.log("Cancelling...");
-          return;
+          console.log(`Stopping current task...`);
+          await _stopTask(app, dash, this.options);
         }
-        console.log(`Stopping current task...`);
-        await _stopTask(app, dash);
       }
+      return dash;
     },
     /*
      * Starts a new task. Adds a new row in the dashboard. Will prompt to stop existing tasks if any.
      */
-    async _start(app) {
+    async _start(app, target) {
       let dash = await this._preStart(app);
-      let target = await this._promptTarget(app);
+      if (!target) {
+        let target2 = await this._promptTarget(app);
+      }
       console.log(`Starting Task ${target.name}...`);
       let currentTime = await _getCurrentTime();
-      await _logStartTime(app, dash, target, currentTime);
+      await _logStartTime(app, dash, target, currentTime, this.options);
       let startDate = /* @__PURE__ */ new Date();
       startDate.setHours(0, 0, 0, 0);
       let endDate = new Date(startDate);
       endDate.setHours(23, 59, 59, 999);
       let runningTaskDuration = await _getTaskDurations(
         app,
+        dash,
         _makeNoteLink(target),
         startDate,
         endDate
@@ -222,12 +555,12 @@
         return;
       }
       console.log(`Stopping current task...`);
-      await _stopTask(app, dash);
+      await _stopTask(app, dash, this.options);
       let startDate = /* @__PURE__ */ new Date();
       startDate.setHours(0, 0, 0, 0);
       let endDate = new Date(startDate);
       endDate.setHours(23, 59, 59, 999);
-      let runningTaskDuration = await _getTaskDurations(app, isTaskRunning, startDate, endDate);
+      let runningTaskDuration = await _getTaskDurations(app, dash, isTaskRunning, startDate, endDate);
       let alertAction = await app.alert(
         `${_getLinkText(isTaskRunning)} stopped successfully. Logged today: ${runningTaskDuration[0]["Duration"]}`,
         {
@@ -247,6 +580,7 @@
       let reportTitle = this.options.noteTitleReportDaily;
       let reportParentTag = this.options.noteTagReports;
       let reportTag = `${reportParentTag}/daily`;
+      let dash = await this._ensureDashboardNote(app);
       if (reportType === "yesterday") {
         startOfDay.setDate(startOfDay.getDate() - 1);
       } else if (reportType === "this week") {
@@ -277,7 +611,7 @@
       }
       startOfDay.setHours(0, 0, 0, 0);
       endOfDay.setHours(23, 59, 59, 999);
-      let taskDurations = await _getTaskDurations(app, null, startOfDay, endOfDay);
+      let taskDurations = await _getTaskDurations(app, dash, null, startOfDay, endOfDay);
       if (taskDurations.length == 0) {
         console.log(`Nothing logged ${reportType}.`);
         await app.alert(`Nothing logged ${reportType}.`);
@@ -292,7 +626,7 @@
       for (let i = 0; i < taskDurations.length; i++) {
         let fileURL2 = await app.attachNoteMedia(
           resultsHandle,
-          await _createLegendSquare(this.options.colors[i])
+          await _createLegendSquare(this.options.colors[i], this.options)
         );
         legendSquares.push(`![](${fileURL2})`);
       }
@@ -307,7 +641,12 @@
       console.log(`Inserting results in report note...`);
       await app.insertNoteContent(resultsHandle, resultsTable);
       console.log(`Generating QuickChart...`);
-      let pieDataURL = await _generatePie(taskDurations);
+      let pieDataURL;
+      try {
+        pieDataURL = await _generatePie(taskDurations, this.options);
+      } catch (err) {
+        pieDataURL = "";
+      }
       const fileURL = await app.attachNoteMedia(resultsHandle, pieDataURL);
       await app.insertNoteContent(resultsHandle, `![](${fileURL})`);
       let alertAction = await app.alert(
