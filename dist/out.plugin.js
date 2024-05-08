@@ -15,9 +15,13 @@
     if (!tableMatch)
       return [];
     const headers = tableMatch[0].split("|").map((header) => header.trim()).filter((header) => header);
-    const rows = tableMatch[2].split("\n").filter((row) => row.trim() !== "");
+    let rows;
+    if (!tableMatch[2])
+      rows = [];
+    else
+      rows = tableMatch[2].split("\n").filter((row) => row.trim() !== "");
     const table = rows.map((row) => {
-      const cells = row.split("|").map((cell) => cell.trim()).filter((cell) => cell);
+      const cells = row.split("|").slice(1, -1).map((cell) => cell.trim());
       const rowObj = {};
       headers.forEach((header, i) => {
         rowObj[header] = cells[i] || null;
@@ -55,7 +59,8 @@ ${dataRows}`;
   function _insertRowToDict(tableDict, target, currentTime) {
     console.log(`_insertRowToDict(${tableDict}, ${target}, ${currentTime})`);
     const newRow = {
-      "Task Name": `${_makeNoteLink(target)}`,
+      "Project Name": target.data.projectName,
+      "Task Name": target.data.taskName,
       "Start Time": currentTime,
       "End Time": ""
     };
@@ -92,7 +97,7 @@ ${dataRows}`;
   function _getISOStringFromDate(dateObject) {
     return dateObject.toISOString().slice(0, -1);
   }
-  function _durationToSeconds2(duration) {
+  function _durationToSeconds(duration) {
     let [hours, minutes, seconds] = duration.split(":").map(Number);
     let totalSeconds = hours * 3600 + minutes * 60 + seconds;
     console.log(totalSeconds);
@@ -110,6 +115,20 @@ ${dataRows}`;
     minutes = minutes.toString().padStart(2, "0");
     seconds = seconds.toString().padStart(2, "0");
     return `${hours}:${minutes}:${seconds}`;
+  }
+  function _addDurations(duration1, duration2) {
+    console.log(`_addDurations(${duration1}, ${duration2})`);
+    const seconds1 = _durationToSeconds(duration1);
+    const seconds2 = _durationToSeconds(duration2);
+    const totalSeconds = seconds1 + seconds2;
+    const totalDuration = _secondsToDuration(totalSeconds);
+    return totalDuration;
+  }
+  function _secondsToDuration(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor(seconds % 3600 / 60);
+    const remainingSeconds = seconds % 60;
+    return [hours, minutes, remainingSeconds].map((v) => v < 10 ? "0" + v : v).join(":");
   }
   function _getFormattedDate(date) {
     const monthNames = [
@@ -150,13 +169,34 @@ ${dataRows}`;
     return `${month} ${day}${daySuffix}, ${year}`;
   }
 
+  // lib/entries.js
+  function _getEntryName(entry) {
+    if (!entry)
+      return "All";
+    if (entry.data.taskName) {
+      return `${_getLinkText(entry.data.projectName)}: ${entry.data.taskName}`;
+    } else {
+      return _getLinkText(entry.data.projectName);
+    }
+  }
+  function _entryFromRow(row) {
+    let entry;
+    entry.data = {};
+    entry.data.taskName = row["Task Name"];
+    entry.data.projectName = row["Project Name"];
+    if (entry.data.taskName)
+      entry.type = "task";
+    else
+      entry.type = "project";
+  }
+
   // lib/tasks.js
-  async function _getTaskDurations(app, dash, taskName, startDate, endDate) {
-    console.log(`_getTaskDurations(app, ${taskName}, ${startDate}, ${endDate})`);
+  async function _getTaskDurations(app, dash, target, startDate, endDate) {
+    console.log(`_getTaskDurations(app, ${_getEntryName(target)}, ${startDate}, ${endDate})`);
     let content = await app.getNoteContent(dash);
     let tableDict = _markdownTableToDict(content);
     console.log(tableDict);
-    let entries = _getEntriesWithinDates(tableDict, taskName, startDate, endDate);
+    let entries = _getEntriesWithinDates(tableDict, target, startDate, endDate);
     console.log(entries);
     if (!entries)
       return;
@@ -171,10 +211,10 @@ ${dataRows}`;
     console.log(table);
     if (!table)
       return false;
-    const runningTask = table.find((row) => row["Task Name"] && row["Start Time"] && !row["End Time"]);
+    const runningTask = table.find((row) => row["Project Name"] && row["Start Time"] && !row["End Time"]);
     console.log(runningTask);
     if (Boolean(runningTask))
-      return runningTask["Task Name"];
+      return runningTask["Project Name"];
     return false;
   }
   async function _logStartTime(app, dash, target, currentTime, options) {
@@ -199,31 +239,35 @@ ${dataRows}`;
     await app.replaceNoteContent(dash, updatedTableMarkdown, { section });
     return true;
   }
-  function _getEntriesWithinDates(tableDict, taskName, startDate, endDate) {
-    console.log(`_getEntriesWithinDates(${tableDict}, ${taskName}, ${startDate}, ${endDate}`);
-    console.log(startDate);
-    console.log(endDate);
+  function _getEntriesWithinDates(tableDict, target, startDate, endDate) {
+    console.log(`_getEntriesWithinDates(${tableDict}, ${_getEntryName(target)}, ${startDate}, ${endDate}`);
     let entries = tableDict.filter((row) => {
       let endTime = new Date(row["End Time"]);
       console.log(new Date(row["End Time"]));
       return endTime >= startDate && endTime <= endDate;
     });
-    if (taskName)
+    if (target)
       entries = entries.filter((row) => {
-        return row["Task Name"] === taskName;
+        return row["Project Name"] === target.data.projectName && row["Task Name"] === target.data.taskName;
       });
     return entries;
   }
-  function _calculateTaskDurations(entries) {
+  async function _calculateTaskDurations(entries, type = "Project") {
     console.log(`_calculateTaskDurations(${entries})`);
     let taskDurations = {};
     entries.forEach((entry) => {
-      let taskName = entry["Task Name"];
+      let targetName;
+      if (type === "Project")
+        targetName = entry["Project Name"];
+      else if (type === "Task")
+        targetName = _getEntryName(_entryFromRow(entry));
+      else
+        return [];
       let duration = _calculateDuration(entry["Start Time"], entry["End Time"]);
-      if (taskName in taskDurations) {
-        taskDurations[taskName] = _addDurations(taskDurations[taskName], duration);
+      if (targetName in taskDurations) {
+        taskDurations[targetName] = _addDurations(taskDurations[targetName], duration);
       } else {
-        taskDurations[taskName] = duration;
+        taskDurations[targetName] = duration;
       }
     });
     let sortedTasks = Object.entries(taskDurations).sort((a, b) => {
@@ -233,7 +277,7 @@ ${dataRows}`;
     });
     let sortedTaskDurations = sortedTasks.map((task) => {
       return {
-        "Task Name": task[0],
+        "Entry Name": task[0],
         "Duration": task[1]
       };
     });
@@ -276,9 +320,9 @@ ${dataRows}`;
   }
   async function _generatePie(taskDurations, options) {
     console.log(`generatePie(${taskDurations})`);
-    const labels = taskDurations.map((task) => _getLinkText(task["Task Name"]));
+    const labels = taskDurations.map((task) => _getEntryName(task));
     console.log(labels);
-    const data = taskDurations.map((task) => _durationToSeconds2(task["Duration"]));
+    const data = taskDurations.map((task) => _durationToSeconds(task["Duration"]));
     console.log(data);
     const chart = new QuickChart();
     chart.setVersion("4");
@@ -385,8 +429,9 @@ ${dataRows}`;
     //===================================================================================
     appOption: {
       "Start...": async function(app) {
+        let target = this._promptTarget(app);
         try {
-          await this._start(app);
+          await this._start(app, target);
         } catch (err) {
           console.log(err);
           await app.alert(err);
@@ -455,8 +500,9 @@ ${dataRows}`;
     insertText: {
       "Start This Task": {
         async run(app) {
+          let target = await app.getTask(app.context.taskUUID);
           try {
-            await this._startTask(app);
+            await this._start(app, target);
           } catch (err) {
             console.log(err);
             await app.alert(err);
@@ -510,12 +556,27 @@ ${dataRows}`;
      */
     async _start(app, target) {
       let dash = await this._preStart(app);
-      if (!target) {
-        let target2 = await this._promptTarget(app);
+      let toStart;
+      if (target.score !== void 0) {
+        let source = await app.findNote({ uuid: target.noteUUID }), toStart2 = {
+          type: "task",
+          data: {
+            projectName: _makeNoteLink(source),
+            taskName: `${target.content.slice(0, 20)} (${target.uuid})`
+          }
+        };
+      } else if (target.body !== void 0) {
+        toStart = {
+          type: "project",
+          data: {
+            projectName: _makeNoteLink(target),
+            taskName: ""
+          }
+        };
       }
-      console.log(`Starting Task ${target.name}...`);
+      console.log(`Starting ${toStart.type} ${_getEntryName(toStart)}...`);
       let currentTime = await _getCurrentTime();
-      await _logStartTime(app, dash, target, currentTime, this.options);
+      await _logStartTime(app, dash, toStart, currentTime, this.options);
       let startDate = /* @__PURE__ */ new Date();
       startDate.setHours(0, 0, 0, 0);
       let endDate = new Date(startDate);
@@ -523,7 +584,7 @@ ${dataRows}`;
       let runningTaskDuration = await _getTaskDurations(
         app,
         dash,
-        _makeNoteLink(target),
+        toStart,
         startDate,
         endDate
       );
@@ -535,7 +596,7 @@ ${dataRows}`;
           actions: [{ label: "Visit Dashboard", icon: "assignment" }]
         }
       );
-      if (alertAction == 0) {
+      if (alertAction === 0) {
         app.navigate(`https://www.amplenote.com/notes/${dash.uuid}`);
       }
       console.log(`${target.name} started successfully. Logged today: ${runningTaskDuration[0]["Duration"]}`);
@@ -661,11 +722,6 @@ ${dataRows}`;
       console.log(`Success!`);
       return true;
     },
-    async _startTask(app) {
-      console.log("_startTask");
-      await this._preStart(app);
-      let task = await app.getTask(app.context.taskUUID);
-    },
     //===================================================================================
     // ==== DASHBOARD MANIPULATION ====
     //===================================================================================
@@ -701,7 +757,7 @@ ${dataRows}`;
           { atEnd: true }
         );
         let tableHeader = await _createTableHeader([
-          "Note Name",
+          "Project Name",
           "Task Name",
           "Start Time",
           "End Time"
