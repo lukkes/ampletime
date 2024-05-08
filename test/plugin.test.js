@@ -3,7 +3,7 @@
  */
 
 
-import {mockApp, mockNote, mockPlugin} from "../lib/test-helpers.js";
+import {mockApp, mockNote, mockPlugin, mockTask} from "../lib/test-helpers.js";
 import {_getISOStringFromDate} from "../lib/date-time.js"
 
 describe("within a test environment", () => {
@@ -72,6 +72,29 @@ describe("within a test environment", () => {
         });
     })
 
+    describe("with a newly started task", () => {
+        describe("with an empty dashboard", () => {
+            const app = mockApp();
+            const plugin = mockPlugin();
+            const target = mockTask("Test target task", "1", "2");
+
+            //----------------------------------------------------------------------------------------------------------
+           it("should create a new entry in the dashboard", async () => {
+               const sourceNoteUUID = await app.createNote("Test target", ["tag1"], "", "2");
+               await app.createNote(plugin.options.noteTitleDashboard, [plugin.options.noteTagDashboard], "", "1");
+               let expectedDash = `## Time entries
+| Project Name | Task Name | Start Time | End Time |
+| - | - | - | - |
+| [Test target](https://www.amplenote.com/notes/2) | Test target task (1) |`;
+
+               await expect(plugin._start(app, target)).resolves.not.toThrow();
+               expect(app._noteRegistry["1"].body).toContain(expectedDash);
+               expect(app._noteRegistry["1"].body).toMatch(/\| .+ \| [0-9]+-[0-9]+.+ \|  \|/s);
+           })
+        })
+
+    })
+
     describe("with a report Tracked Today", () => {
         describe("with one completed task", () => {
             const app = mockApp();
@@ -94,8 +117,8 @@ describe("within a test environment", () => {
             //----------------------------------------------------------------------------------------------------------
             it("should report the task", async () => {
                 await app.createNote(plugin.options.noteTitleDashboard, plugin.options.noteTagDashboard, dash, "1");
-                await plugin._generateReport(app, "today");
-                // await expect(plugin._generateReport(app, "today")).resolves.not.toThrow();
+                // await plugin._generateReport(app, "today");
+                await expect(plugin._generateReport(app, "today")).resolves.not.toThrow();
                 let resultsNote = app._noteRegistry["2"];
                 expect(resultsNote.body).toContain(`| Color | Entry Name | Duration |
 | - | - | - |
