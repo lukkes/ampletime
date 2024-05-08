@@ -558,7 +558,8 @@ ${dataRows}`;
       let dash = await this._preStart(app);
       let toStart;
       if (target.score !== void 0) {
-        let source = await app.findNote({ uuid: target.noteUUID }), toStart2 = {
+        let source = await app.findNote({ uuid: target.noteUUID });
+        toStart = {
           type: "task",
           data: {
             projectName: _makeNoteLink(source),
