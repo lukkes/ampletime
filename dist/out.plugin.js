@@ -19,7 +19,7 @@
     if (!tableMatch[2])
       rows = [];
     else
-      rows = tableMatch[2].split("\n").filter((row) => row.trim() !== "");
+      rows = tableMatch.slice(2).filter((row) => row.trim() !== "");
     const table = rows.map((row) => {
       const cells = row.split("|").slice(1, -1).map((cell) => cell.trim());
       const rowObj = {};
@@ -191,6 +191,33 @@ ${dataRows}`;
   }
 
   // lib/tasks.js
+  async function _getTaskDistribution(app, dash, target, startDate, endDate) {
+    console.log(`_getTaskDistribution()`);
+    let content = await app.getNoteContent(dash);
+    let tableDict = _markdownTableToDict(content);
+    console.log(tableDict);
+    let entries = _getEntriesWithinDates(tableDict, target, startDate, endDate);
+    console.log(entries);
+    if (!entries)
+      return;
+    entries = entries.filter((item) => item["Task Name"]);
+    let taskDistribution = { "q1": [], "q2": [], "q3": [], "q4": [] };
+    for (let entry of entries) {
+      let matches = entry["Task Name"].match(/\(([a-zA-Z0-9]+?)\)/gm);
+      let taskUUID = matches[matches.length - 1];
+      taskUUID = taskUUID.slice(1, taskUUID.length - 1);
+      let task = await app.getTask(taskUUID);
+      if (task.urgent && task.important)
+        taskDistribution.q1.push(task);
+      else if (!task.urgent && task.important)
+        taskDistribution.q2.push(task);
+      else if (task.urgent && !task.important)
+        taskDistribution.q3.push(task);
+      else if (!task.urgent && !task.important)
+        taskDistribution.q4.push(task);
+    }
+    return taskDistribution;
+  }
   async function _getTaskDurations(app, dash, target, startDate, endDate) {
     console.log(`_getTaskDurations(app, ${_getEntryName(target)}, ${startDate}, ${endDate})`);
     let content = await app.getNoteContent(dash);
@@ -200,9 +227,9 @@ ${dataRows}`;
     console.log(entries);
     if (!entries)
       return;
-    let taskDurations = _calculateTaskDurations(entries);
-    console.log(taskDurations);
-    return taskDurations;
+    let taskDurations2 = _calculateTaskDurations(entries);
+    console.log(taskDurations2);
+    return taskDurations2;
   }
   async function _isTaskRunning(app, dash) {
     console.log(`_isTaskRunning(${dash})`);
@@ -217,7 +244,7 @@ ${dataRows}`;
       return runningTask["Project Name"];
     return false;
   }
-  async function _logStartTime(app, dash, target, currentTime, options) {
+  async function _logStartTime(app, dash, target, currentTime, options2) {
     console.log(`_logStartTime(${dash}, ${target}, ${currentTime})`);
     let content = await app.getNoteContent(dash);
     let tableDict = _markdownTableToDict(content);
@@ -226,16 +253,16 @@ ${dataRows}`;
     console.log(tableDict);
     let updatedTableMarkdown = _dictToMarkdownTable(tableDict);
     console.log(updatedTableMarkdown);
-    const section = { heading: { text: options.sectionTitleDashboardTimeEntries } };
+    const section = { heading: { text: options2.sectionTitleDashboardTimeEntries } };
     await app.replaceNoteContent(dash, updatedTableMarkdown, { section });
     return true;
   }
-  async function _stopTask(app, dash, options) {
+  async function _stopTask(app, dash, options2) {
     let content = await app.getNoteContent(dash);
     let tableDict = _markdownTableToDict(content);
     tableDict = _addEndTimeToDict(tableDict, await _getCurrentTime());
     let updatedTableMarkdown = _dictToMarkdownTable(tableDict);
-    const section = { heading: { text: options.sectionTitleDashboardTimeEntries } };
+    const section = { heading: { text: options2.sectionTitleDashboardTimeEntries } };
     await app.replaceNoteContent(dash, updatedTableMarkdown, { section });
     return true;
   }
@@ -254,7 +281,7 @@ ${dataRows}`;
   }
   async function _calculateTaskDurations(entries, type = "Project") {
     console.log(`_calculateTaskDurations(${entries})`);
-    let taskDurations = {};
+    let taskDurations2 = {};
     entries.forEach((entry) => {
       let targetName;
       if (type === "Project")
@@ -264,13 +291,13 @@ ${dataRows}`;
       else
         return [];
       let duration = _calculateDuration(entry["Start Time"], entry["End Time"]);
-      if (targetName in taskDurations) {
-        taskDurations[targetName] = _addDurations(taskDurations[targetName], duration);
+      if (targetName in taskDurations2) {
+        taskDurations2[targetName] = _addDurations(taskDurations2[targetName], duration);
       } else {
-        taskDurations[targetName] = duration;
+        taskDurations2[targetName] = duration;
       }
     });
-    let sortedTasks = Object.entries(taskDurations).sort((a, b) => {
+    let sortedTasks = Object.entries(taskDurations2).sort((a, b) => {
       let aDurationInSeconds = _durationToSeconds(a[1]);
       let bDurationInSeconds = _durationToSeconds(b[1]);
       return bDurationInSeconds - aDurationInSeconds;
@@ -295,11 +322,11 @@ ${dataRows}`;
   }
 
   // lib/reports.js
-  async function _createLegendSquare(color, options) {
+  async function _createLegendSquare(color, options2) {
     console.log(`_createLegendSquare(${color})`);
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
-    const size = options.legendSquareSize;
+    const size = options2.legendSquareSize;
     canvas.width = size;
     canvas.height = size;
     ctx.fillStyle = color;
@@ -318,11 +345,31 @@ ${dataRows}`;
     console.log(blob);
     return await _dataURLFromBlob(blob);
   }
-  async function _generatePie(taskDurations, options) {
-    console.log(`generatePie(${taskDurations})`);
-    const labels = taskDurations.map((task) => _getEntryName(task));
+  async function _generateRadar(taskDistribution, options2) {
+    console.log(`generateRadar(${taskDistribution})`);
+    const labels = Object.keys(taskDistribution);
+    const data = Object.values(taskDistribution);
+    const chart = new QuickChart();
+    chart.setWidth(500);
+    chart.setWidth(500);
+    chart.setconfig({
+      type: "radar",
+      data: {
+        labels,
+        datasets: [{ data }]
+      }
+    });
+    console.log(chart.getUrl());
+    let response = await fetch(chart.getUrl());
+    let blob = await response.blob();
+    let dataUR = await _dataURLFromBlob(blob);
+    return dataURL;
+  }
+  async function _generatePie(taskDurations2, options2) {
+    console.log(`generatePie(${taskDurations2})`);
+    const labels = taskDurations2.map((task) => _getEntryName(task));
     console.log(labels);
-    const data = taskDurations.map((task) => _durationToSeconds(task["Duration"]));
+    const data = taskDurations2.map((task) => _durationToSeconds(task["Duration"]));
     console.log(data);
     const chart = new QuickChart();
     chart.setVersion("4");
@@ -332,7 +379,7 @@ ${dataRows}`;
       type: "pie",
       data: {
         labels,
-        datasets: [{ data, backgroundColor: options.colors }]
+        datasets: [{ data, backgroundColor: options2.colors }]
       },
       options: {
         plugins: {
@@ -363,8 +410,49 @@ ${dataRows}`;
     console.log(chart.getUrl());
     let response = await fetch(chart.getUrl());
     let blob = await response.blob();
-    let dataURL = await _dataURLFromBlob(blob);
-    return dataURL;
+    let dataURL2 = await _dataURLFromBlob(blob);
+    return dataURL2;
+  }
+  async function _generateDurationsReport(app, options2, resultsHandle, taskDurations2) {
+    console.log(`Creating legend squares...`);
+    let legendSquares = [];
+    for (let i = 0; i < taskDurations2.length; i++) {
+      let fileURL2 = await app.attachNoteMedia(
+        resultsHandle,
+        await _createLegendSquare(options2.colors[i], options2)
+      );
+      legendSquares.push(`![](${fileURL2})`);
+    }
+    taskDurations2 = _insertColumnInMemory(
+      taskDurations2,
+      "Color",
+      legendSquares
+    );
+    console.log(taskDurations2);
+    let resultsTable = _dictToMarkdownTable(taskDurations2);
+    console.log(resultsTable);
+    console.log(`Inserting results in report note...`);
+    await app.insertNoteContent(resultsHandle, resultsTable);
+    console.log(`Generating QuickChart...`);
+    let pieDataURL;
+    try {
+      pieDataURL = await _generatePie(taskDurations2, options2);
+    } catch (err) {
+      pieDataURL = "";
+    }
+    const fileURL = await app.attachNoteMedia(resultsHandle, pieDataURL);
+    await app.insertNoteContent(resultsHandle, `![](${fileURL})`);
+  }
+  async function _generateQuadrantReport(app, resultsHandle, taskDistribution) {
+    console.log(`Generating QuickChart...`);
+    let pieDataURL;
+    try {
+      pieDataURL = await _generateRadar(taskDurations, options);
+    } catch (err) {
+      pieDataURL = "";
+    }
+    const fileURL = await app.attachNoteMedia(resultsHandle, pieDataURL);
+    await app.insertNoteContent(resultsHandle, `![](${fileURL})`);
   }
 
   // lib/plugin.js
@@ -589,7 +677,7 @@ ${dataRows}`;
         startDate,
         endDate
       );
-      if (runningTaskDuration.length == 0)
+      if (runningTaskDuration.length === 0)
         runningTaskDuration = [{ "Duration": "00:00:00" }];
       let alertAction = await app.alert(
         `${target.name} started successfully. Logged today: ${runningTaskDuration[0]["Duration"]}`,
@@ -629,7 +717,7 @@ ${dataRows}`;
           actions: [{ label: "Visit Dashboard", icon: "assignment" }]
         }
       );
-      if (alertAction == 0) {
+      if (alertAction === 0) {
         app.navigate(`https://www.amplenote.com/notes/${dash.uuid}`);
       }
       console.log(`${_getLinkText(isTaskRunning)} stopped successfully. Logged today: ${runningTaskDuration[0]["Duration"]}`);
@@ -673,51 +761,26 @@ ${dataRows}`;
       }
       startOfDay.setHours(0, 0, 0, 0);
       endOfDay.setHours(23, 59, 59, 999);
-      let taskDurations = await _getTaskDurations(app, dash, null, startOfDay, endOfDay);
-      if (taskDurations.length == 0) {
-        console.log(`Nothing logged ${reportType}.`);
-        await app.alert(`Nothing logged ${reportType}.`);
-        return;
-      }
       reportTitle = `${reportTitle} ${_getFormattedDate(startOfDay)}`;
       let resultsUUID = await app.createNote(`${reportTitle}`, [reportTag]);
       let resultsHandle = await app.findNote({ uuid: resultsUUID });
       console.log(`Created results note with UUID ${resultsUUID}`);
-      console.log(`Creating legend squares...`);
-      let legendSquares = [];
-      for (let i = 0; i < taskDurations.length; i++) {
-        let fileURL2 = await app.attachNoteMedia(
-          resultsHandle,
-          await _createLegendSquare(this.options.colors[i], this.options)
-        );
-        legendSquares.push(`![](${fileURL2})`);
+      let taskDurations2 = await _getTaskDurations(app, dash, null, startOfDay, endOfDay);
+      if (taskDurations2.length === 0) {
+        console.log(`Nothing logged ${reportType}.`);
+        await app.alert(`Nothing logged ${reportType}.`);
+        return;
       }
-      taskDurations = _insertColumnInMemory(
-        taskDurations,
-        "Color",
-        legendSquares
-      );
-      console.log(taskDurations);
-      let resultsTable = _dictToMarkdownTable(taskDurations);
-      console.log(resultsTable);
-      console.log(`Inserting results in report note...`);
-      await app.insertNoteContent(resultsHandle, resultsTable);
-      console.log(`Generating QuickChart...`);
-      let pieDataURL;
-      try {
-        pieDataURL = await _generatePie(taskDurations, this.options);
-      } catch (err) {
-        pieDataURL = "";
-      }
-      const fileURL = await app.attachNoteMedia(resultsHandle, pieDataURL);
-      await app.insertNoteContent(resultsHandle, `![](${fileURL})`);
+      await _generateDurationsReport(app, this.options, resultsHandle, taskDurations2);
+      let taskDistribution = await _getTaskDistribution(app, dash, null, startOfDay, endOfDay);
+      await _generateQuadrantReport(app, resultsHandle, taskDistribution);
       let alertAction = await app.alert(
         `Daily report generated successfully!`,
         {
           actions: [{ label: "Visit Report", icon: "donut_small" }]
         }
       );
-      if (alertAction == 0) {
+      if (alertAction === 0) {
         app.navigate(`https://www.amplenote.com/notes/${resultsHandle.uuid}`);
       }
       console.log(`Success!`);
@@ -774,18 +837,17 @@ ${dataRows}`;
      */
     async _createDashboardNote(app, noteTitle, noteTag) {
       console.log(`_createDashboardNote(app, ${noteTitle}, ${noteTag}`);
-      const note = await app.createNote(noteTitle, [noteTag]);
-      const noteHandle = await app.findNote({
+      await app.createNote(noteTitle, [noteTag]);
+      return await app.findNote({
         name: noteTitle,
         tags: [noteTag]
       });
-      return noteHandle;
     },
     //===================================================================================
     // ==== AN UX ====
     //=================================================================================== 
     async _promptTarget(app) {
-      let result = app.prompt(
+      return app.prompt(
         "What are you working on?",
         {
           inputs: [
@@ -793,7 +855,6 @@ ${dataRows}`;
           ]
         }
       );
-      return result;
     },
     //===================================================================================
     // ==== MISC ====
