@@ -15,8 +15,9 @@ describe("within a test environment", () => {
             //----------------------------------------------------------------------------------------------------------
             it("should create the dashboard and the first entry", async () => {
                 let expectedDash = `## Time entries
+| | | | |
+|-|-|-|-|
 | Project Name | Task Name | Start Time | End Time |
-| - | - | - | - |
 | [Test target](https://www.amplenote.com/notes/2) |  |`;
 
                 await plugin._start(app, target)
@@ -36,8 +37,9 @@ describe("within a test environment", () => {
             it("should create a new entry in the dashboard", async () => {
                 await app.createNote(plugin.options.noteTitleDashboard, [plugin.options.noteTagDashboard], "", "1");
                 let expectedDash = `## Time entries
+| | | | |
+|-|-|-|-|
 | Project Name | Task Name | Start Time | End Time |
-| - | - | - | - |
 | [Test target](https://www.amplenote.com/notes/2) |  |`;
 
                 await expect(plugin._start(app, target)).resolves.not.toThrow();
@@ -52,12 +54,14 @@ describe("within a test environment", () => {
             plugin.options.alwaysStopRunningTask = true;
             const target = mockNote("", "Test target", "2", ["tag1"]);
             const dash = `## Time entries
+| | | | |
+|-|-|-|-|
 | Project Name | Task Name | Start Time | End Time |
-| - | - | - | - |
 | [Test target](https://www.amplenote.com/notes/2) |  | some date |  |`;
             const expectedDash = `## Time entries
+| | | | |
+|-|-|-|-|
 | Project Name | Task Name | Start Time | End Time |
-| - | - | - | - |
 | [Test target](https://www.amplenote.com/notes/2) |  |`;
 
             //----------------------------------------------------------------------------------------------------------
@@ -65,9 +69,9 @@ describe("within a test environment", () => {
                 await app.createNote(plugin.options.noteTitleDashboard, [plugin.options.noteTagDashboard], dash, "1");
                 await expect(plugin._start(app, target)).resolves.not.toThrow();
                 expect(app._noteRegistry["1"].body).toContain(expectedDash);
-                expect(app._noteRegistry["1"].body.split("\n")[3]).toMatch(/\| .+ \| [0-9]+-[0-9]+.+ \|  \|/s);
-                expect(app._noteRegistry["1"].body.split("\n")[4]).toContain("| [Test target](https://www.amplenote.com/notes/2) |  | some date |");
-                expect(app._noteRegistry["1"].body.split("\n")[4]).toMatch(/.+ \| some date \| [0-9]+-[0-9]+.+ \|/s);
+                expect(app._noteRegistry["1"].body.split("\n")[4]).toMatch(/\| .+ \| [0-9]+-[0-9]+.+ \|  \|/s);
+                expect(app._noteRegistry["1"].body.split("\n")[5]).toContain("| [Test target](https://www.amplenote.com/notes/2) |  | some date |");
+                expect(app._noteRegistry["1"].body.split("\n")[5]).toMatch(/.+ \| some date \| [0-9]+-[0-9]+.+ \|/s);
             });
         });
     })
@@ -83,8 +87,9 @@ describe("within a test environment", () => {
                const sourceNoteUUID = await app.createNote("Test target", ["tag1"], "", "2");
                await app.createNote(plugin.options.noteTitleDashboard, [plugin.options.noteTagDashboard], "", "1");
                let expectedDash = `## Time entries
+| | | | |
+|-|-|-|-|
 | Project Name | Task Name | Start Time | End Time |
-| - | - | - | - |
 | [Test target](https://www.amplenote.com/notes/2) | Test target task (1) |`;
 
                await expect(plugin._start(app, target)).resolves.not.toThrow();
@@ -110,8 +115,9 @@ describe("within a test environment", () => {
             dateStop.setHours(21);
 
             const dash = `## Time entries
+| | | | |
+|-|-|-|-|
 | Project Name | Task Name | Start Time | End Time |
-| - | - | - |
 | [Test target](https://www.amplenote.com/notes/2) |  | ${_getISOStringFromDate(dateStart)} | ${_getISOStringFromDate(dateStop)} |`
 
             //----------------------------------------------------------------------------------------------------------
@@ -120,8 +126,9 @@ describe("within a test environment", () => {
                 // await plugin._generateReport(app, "today");
                 await expect(plugin._generateReport(app, "today")).resolves.not.toThrow();
                 let resultsNote = app._noteRegistry["2"];
-                expect(resultsNote.body).toContain(`| Color | Entry Name | Duration |
-| - | - | - |
+                expect(resultsNote.body).toContain(`| | | |
+|-|-|-|
+| Color | Entry Name | Duration |
 | ![](undefined) | [Test target](https://www.amplenote.com/notes/2) | 01:00:00 |
 ![](undefined)`);
             })
@@ -141,8 +148,9 @@ describe("within a test environment", () => {
             dateStop.setHours(21);
 
             const dash = `## Time entries
+| | | | |
+|-|-|-|-|
 | Project Name | Task Name | Start Time | End Time |
-| - | - | - | - |
 | [Test target](https://www.amplenote.com/notes/2) | Task (extra) () (1) | ${_getISOStringFromDate(dateStart)} | ${_getISOStringFromDate(dateStop)} |
 | [Test target](https://www.amplenote.com/notes/2) | Task (2) | ${_getISOStringFromDate(dateStart)} | ${_getISOStringFromDate(dateStop)} |
 | [Test target](https://www.amplenote.com/notes/2) | Task (3) | ${_getISOStringFromDate(dateStart)} | ${_getISOStringFromDate(dateStop)} |
@@ -159,16 +167,18 @@ describe("within a test environment", () => {
                 // await plugin._generateReport(app, "today");
                 await expect(plugin._generateReport(app, "today")).resolves.not.toThrow();
                 let resultsNote = app._noteRegistry["2"];
-                expect(resultsNote.body).toContain(`| Quadrant | Percentage |
-| - | - |
+                expect(resultsNote.body).toContain(`| | |
+|-|-|
+| Quadrant | Percentage |
 | q1 | 0.25 |
 | q2 | 0.25 |
 | q3 | 0.25 |
 | q4 | 0.25 |`);
 
                 return
-                expect(resultsNote.body).toContain(`| Color | Entry Name | Duration |
-| - | - | - |
+                expect(resultsNote.body).toContain(`| | | |
+|-|-|-|
+| Color | Entry Name | Duration |
 | ![](undefined) | [Test target](https://www.amplenote.com/notes/2) | 01:00:00 |
 ![](undefined)`);
             })
@@ -182,12 +192,14 @@ describe("within a test environment", () => {
             plugin.options.alwaysStopRunningTask = true;
             const target = mockNote("", "Test target", "2", ["tag1"]);
             const dash = `## Time entries
+| | | | |
+|-|-|-|-|
 | Project Name | Task Name | Start Time | End Time |
-| - | - | - | - |
 | [Test target](https://www.amplenote.com/notes/2) |  | some date |  |`;
             const expectedDash = `## Time entries
+| | | | |
+|-|-|-|-|
 | Project Name | Task Name | Start Time | End Time |
-| - | - | - | - |
 | [Test target](https://www.amplenote.com/notes/2) |  |`;
 
             //----------------------------------------------------------------------------------------------------------
@@ -196,8 +208,8 @@ describe("within a test environment", () => {
                 await plugin._stop(app);
                 // await expect(plugin._stop(app)).resolves.not.toThrow();
                 expect(app._noteRegistry["1"].body).toContain(expectedDash);
-                expect(app._noteRegistry["1"].body.split("\n")[3]).toContain("| [Test target](https://www.amplenote.com/notes/2) |  | some date |");
-                expect(app._noteRegistry["1"].body.split("\n")[3]).toMatch(/.+ \| some date \| [0-9]+-[0-9]+.+ \|/s);
+                expect(app._noteRegistry["1"].body.split("\n")[4]).toContain("| [Test target](https://www.amplenote.com/notes/2) |  | some date |");
+                expect(app._noteRegistry["1"].body.split("\n")[4]).toMatch(/.+ \| some date \| [0-9]+-[0-9]+.+ \|/s);
             });
         });
     })
