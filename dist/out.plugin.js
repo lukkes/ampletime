@@ -180,7 +180,7 @@ ${dataRows}`;
     }
   }
   function _entryFromRow(row) {
-    let entry;
+    let entry = {};
     entry.data = {};
     entry.data.taskName = row["Task Name"];
     entry.data.projectName = row["Project Name"];
@@ -188,6 +188,7 @@ ${dataRows}`;
       entry.type = "task";
     else
       entry.type = "project";
+    return entry;
   }
 
   // lib/tasks.js
@@ -241,7 +242,7 @@ ${dataRows}`;
     const runningTask = table.find((row) => row["Project Name"] && row["Start Time"] && !row["End Time"]);
     console.log(runningTask);
     if (Boolean(runningTask))
-      return runningTask["Project Name"];
+      return _entryFromRow(runningTask);
     return false;
   }
   async function _logStartTime(app, dash, target, currentTime, options2) {
