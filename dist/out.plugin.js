@@ -2,10 +2,12 @@
   // lib/markdown.js
   async function _createTableHeader(columns) {
     console.log(`_createTableHeader(${columns}`);
+    const separatorFirst = columns.map(() => " ").join("|");
+    const separatorSecond = columns.map(() => "-").join("|");
     const header = columns.join(" | ");
-    const separator = columns.map(() => "-").join(" | ");
-    const tableHeader = `| ${header} |
-| ${separator} |`;
+    const tableHeader = `|${separatorFirst}|
+|${separatorSecond}|
+| ${header} |`;
     return tableHeader;
   }
   function _markdownTableToDict(content) {
@@ -14,12 +16,12 @@
     const tableMatch = content.match(tableRegex);
     if (!tableMatch)
       return [];
-    const headers = tableMatch[0].split("|").map((header) => header.trim()).filter((header) => header);
+    const headers = tableMatch.slice(2)[0].split("|").map((header) => header.trim()).filter((header) => header);
     let rows;
     if (!tableMatch[2])
       rows = [];
     else
-      rows = tableMatch.slice(2).filter((row) => row.trim() !== "");
+      rows = tableMatch.slice(3).filter((row) => row.trim() !== "");
     const table = rows.map((row) => {
       const cells = row.split("|").slice(1, -1).map((cell) => cell.trim());
       const rowObj = {};
@@ -36,14 +38,16 @@
     console.log(tableDict[0]);
     console.log(Object.keys(tableDict[0]));
     const headers = Object.keys(tableDict[0]);
+    const separatorFirst = `|${headers.map(() => " ").join("|")}|`;
+    const separatorSecond = `|${headers.map(() => "-").join("|")}|`;
     const headerRow = `| ${headers.join(" | ")} |`;
-    const separator = `| ${headers.map(() => "-").join(" | ")} |`;
     const dataRows = tableDict.map((row) => {
       const cells = headers.map((header) => row[header]);
       return `| ${cells.join(" | ")} |`;
     }).join("\n");
-    return `${headerRow}
-${separator}
+    return `${separatorFirst}
+${separatorSecond}
+${headerRow}
 ${dataRows}`;
   }
   function _getLinkText(text) {
