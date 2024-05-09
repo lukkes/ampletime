@@ -227,9 +227,9 @@ ${dataRows}`;
     console.log(entries);
     if (!entries)
       return;
-    let taskDurations2 = _calculateTaskDurations(entries);
-    console.log(taskDurations2);
-    return taskDurations2;
+    let taskDurations = _calculateTaskDurations(entries);
+    console.log(taskDurations);
+    return taskDurations;
   }
   async function _isTaskRunning(app, dash) {
     console.log(`_isTaskRunning(${dash})`);
@@ -281,7 +281,7 @@ ${dataRows}`;
   }
   async function _calculateTaskDurations(entries, type = "Project") {
     console.log(`_calculateTaskDurations(${entries})`);
-    let taskDurations2 = {};
+    let taskDurations = {};
     entries.forEach((entry) => {
       let targetName;
       if (type === "Project")
@@ -291,13 +291,13 @@ ${dataRows}`;
       else
         return [];
       let duration = _calculateDuration(entry["Start Time"], entry["End Time"]);
-      if (targetName in taskDurations2) {
-        taskDurations2[targetName] = _addDurations(taskDurations2[targetName], duration);
+      if (targetName in taskDurations) {
+        taskDurations[targetName] = _addDurations(taskDurations[targetName], duration);
       } else {
-        taskDurations2[targetName] = duration;
+        taskDurations[targetName] = duration;
       }
     });
-    let sortedTasks = Object.entries(taskDurations2).sort((a, b) => {
+    let sortedTasks = Object.entries(taskDurations).sort((a, b) => {
       let aDurationInSeconds = _durationToSeconds(a[1]);
       let bDurationInSeconds = _durationToSeconds(b[1]);
       return bDurationInSeconds - aDurationInSeconds;
@@ -365,11 +365,11 @@ ${dataRows}`;
     let dataUR = await _dataURLFromBlob(blob);
     return dataURL;
   }
-  async function _generatePie(taskDurations2, options2) {
-    console.log(`generatePie(${taskDurations2})`);
-    const labels = taskDurations2.map((task) => _getEntryName(task));
+  async function _generatePie(taskDurations, options2) {
+    console.log(`generatePie(${taskDurations})`);
+    const labels = taskDurations.map((task) => _getEntryName(task));
     console.log(labels);
-    const data = taskDurations2.map((task) => _durationToSeconds(task["Duration"]));
+    const data = taskDurations.map((task) => _durationToSeconds(task["Duration"]));
     console.log(data);
     const chart = new QuickChart();
     chart.setVersion("4");
@@ -413,30 +413,30 @@ ${dataRows}`;
     let dataURL2 = await _dataURLFromBlob(blob);
     return dataURL2;
   }
-  async function _generateDurationsReport(app, options2, resultsHandle, taskDurations2) {
+  async function _generateDurationsReport(app, options2, resultsHandle, taskDurations) {
     console.log(`Creating legend squares...`);
     let legendSquares = [];
-    for (let i = 0; i < taskDurations2.length; i++) {
+    for (let i = 0; i < taskDurations.length; i++) {
       let fileURL2 = await app.attachNoteMedia(
         resultsHandle,
         await _createLegendSquare(options2.colors[i], options2)
       );
       legendSquares.push(`![](${fileURL2})`);
     }
-    taskDurations2 = _insertColumnInMemory(
-      taskDurations2,
+    taskDurations = _insertColumnInMemory(
+      taskDurations,
       "Color",
       legendSquares
     );
-    console.log(taskDurations2);
-    let resultsTable = _dictToMarkdownTable(taskDurations2);
+    console.log(taskDurations);
+    let resultsTable = _dictToMarkdownTable(taskDurations);
     console.log(resultsTable);
     console.log(`Inserting results in report note...`);
     await app.insertNoteContent(resultsHandle, resultsTable);
     console.log(`Generating QuickChart...`);
     let pieDataURL;
     try {
-      pieDataURL = await _generatePie(taskDurations2, options2);
+      pieDataURL = await _generatePie(taskDurations, options2);
     } catch (err) {
       pieDataURL = "";
     }
@@ -444,10 +444,25 @@ ${dataRows}`;
     await app.insertNoteContent(resultsHandle, `![](${fileURL})`);
   }
   async function _generateQuadrantReport(app, resultsHandle, taskDistribution) {
+    let totalLength = Object.values(taskDistribution).reduce((pv, cv) => pv + cv.length, 0);
+    let percentages = {
+      q1: taskDistribution.q1.length / totalLength,
+      q2: taskDistribution.q2.length / totalLength,
+      q3: taskDistribution.q3.length / totalLength,
+      q4: taskDistribution.q4.length / totalLength
+    };
+    let percentagesDict = Object.keys(percentages).map((key) => {
+      return { "Quadrant": key, "Percentage": percentages[key] };
+    });
+    let resultsTable = _dictToMarkdownTable(percentagesDict);
+    console.log(resultsTable);
+    console.log(`Inserting results in report note...`);
+    await app.insertNoteContent(resultsHandle, resultsTable);
+    ;
     console.log(`Generating QuickChart...`);
     let pieDataURL;
     try {
-      pieDataURL = await _generateRadar(taskDurations, options);
+      pieDataURL = await _generateRadar(taskDistribution, options);
     } catch (err) {
       pieDataURL = "";
     }
@@ -765,13 +780,13 @@ ${dataRows}`;
       let resultsUUID = await app.createNote(`${reportTitle}`, [reportTag]);
       let resultsHandle = await app.findNote({ uuid: resultsUUID });
       console.log(`Created results note with UUID ${resultsUUID}`);
-      let taskDurations2 = await _getTaskDurations(app, dash, null, startOfDay, endOfDay);
-      if (taskDurations2.length === 0) {
+      let taskDurations = await _getTaskDurations(app, dash, null, startOfDay, endOfDay);
+      if (taskDurations.length === 0) {
         console.log(`Nothing logged ${reportType}.`);
         await app.alert(`Nothing logged ${reportType}.`);
         return;
       }
-      await _generateDurationsReport(app, this.options, resultsHandle, taskDurations2);
+      await _generateDurationsReport(app, this.options, resultsHandle, taskDurations);
       let taskDistribution = await _getTaskDistribution(app, dash, null, startOfDay, endOfDay);
       await _generateQuadrantReport(app, resultsHandle, taskDistribution);
       let alertAction = await app.alert(
