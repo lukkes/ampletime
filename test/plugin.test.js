@@ -174,4 +174,31 @@ describe("within a test environment", () => {
             })
         })
     })
+
+    describe("with a stop command issues", () => {
+        describe("with a running task", () => {
+            const app = mockApp();
+            const plugin = mockPlugin();
+            plugin.options.alwaysStopRunningTask = true;
+            const target = mockNote("", "Test target", "2", ["tag1"]);
+            const dash = `## Time entries
+| Project Name | Task Name | Start Time | End Time |
+| - | - | - | - |
+| [Test target](https://www.amplenote.com/notes/2) |  | some date |  |`;
+            const expectedDash = `## Time entries
+| Project Name | Task Name | Start Time | End Time |
+| - | - | - | - |
+| [Test target](https://www.amplenote.com/notes/2) |  |`;
+
+            //----------------------------------------------------------------------------------------------------------
+            it("should offer to stop previous task?", async () => {
+                await app.createNote(plugin.options.noteTitleDashboard, [plugin.options.noteTagDashboard], dash, "1");
+                await plugin._stop(app);
+                // await expect(plugin._stop(app)).resolves.not.toThrow();
+                expect(app._noteRegistry["1"].body).toContain(expectedDash);
+                expect(app._noteRegistry["1"].body.split("\n")[3]).toContain("| [Test target](https://www.amplenote.com/notes/2) |  | some date |");
+                expect(app._noteRegistry["1"].body.split("\n")[3]).toMatch(/.+ \| some date \| [0-9]+-[0-9]+.+ \|/s);
+            });
+        });
+    })
 })
