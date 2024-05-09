@@ -203,7 +203,7 @@ ${dataRows}`;
     entries = entries.filter((item) => item["Task Name"]);
     let taskDistribution = { "q1": [], "q2": [], "q3": [], "q4": [] };
     for (let entry of entries) {
-      let matches = entry["Task Name"].match(/\(([a-zA-Z0-9]+?)\)/gm);
+      let matches = entry["Task Name"].match(/\(([a-zA-Z0-9-]+?)\)/gm);
       let taskUUID = matches[matches.length - 1];
       taskUUID = taskUUID.slice(1, taskUUID.length - 1);
       let task = await app.getTask(taskUUID);
