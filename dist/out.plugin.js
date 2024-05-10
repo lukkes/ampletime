@@ -652,8 +652,17 @@ ${dataRows}`;
     insertText: {
       "Start This Task": {
         async run(app) {
-          let target = await app.getTask(app.context.taskUUID);
           try {
+            await app.context.replaceSelection("");
+            let currentNote = await app.getNoteContent({ uuid: app.context.noteUUID });
+            let target = await app.getTask(app.context.taskUUID);
+            while (true) {
+              if (currentNote.includes(target.content))
+                break;
+              target = await app.getTask(app.context.taskUUID);
+              await new Promise((r) => setTimeout(r, 500));
+            }
+            console.log(target.content);
             await this._start(app, target);
           } catch (err) {
             console.log(err);
@@ -744,7 +753,7 @@ ${dataRows}`;
       if (runningTaskDuration.length === 0)
         runningTaskDuration = [{ "Duration": "00:00:00" }];
       let alertAction = await app.alert(
-        `${target.name} started successfully. Logged today: ${runningTaskDuration[0]["Duration"]}`,
+        `${toStart.data.taskName ? toStart.data.taskName : target.name} started successfully. Logged today: ${runningTaskDuration[0]["Duration"]}`,
         {
           actions: [{ label: "Visit Dashboard", icon: "assignment" }]
         }
