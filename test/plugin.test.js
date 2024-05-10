@@ -170,10 +170,10 @@ describe("within a test environment", () => {
                 expect(resultsNote.body).toContain(`| | |
 |-|-|
 | Quadrant | Percentage |
-| q1 | 0.25 |
-| q2 | 0.25 |
-| q3 | 0.25 |
-| q4 | 0.25 |`);
+| q1 | 25% |
+| q2 | 25% |
+| q3 | 25% |
+| q4 | 25% |`);
 
                 return
                 expect(resultsNote.body).toContain(`| | | |
