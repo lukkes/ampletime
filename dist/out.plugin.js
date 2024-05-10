@@ -213,13 +213,21 @@ ${dataRows}`;
       taskUUID = taskUUID.slice(1, taskUUID.length - 1);
       let task = await app.getTask(taskUUID);
       if (task.urgent && task.important)
-        taskDistribution.q1.push(task);
+        taskDistribution.q1.push(entry);
       else if (!task.urgent && task.important)
-        taskDistribution.q2.push(task);
+        taskDistribution.q2.push(entry);
       else if (task.urgent && !task.important)
-        taskDistribution.q3.push(task);
+        taskDistribution.q3.push(entry);
       else if (!task.urgent && !task.important)
-        taskDistribution.q4.push(task);
+        taskDistribution.q4.push(entry);
+    }
+    for (let key of Object.keys(taskDistribution)) {
+      let durations = await _calculateTaskDurations(taskDistribution[key]);
+      let sum = durations.reduce((pv, cv) => _addDurations(pv, cv["Duration"]), "00:00:00");
+      taskDistribution[key] = {
+        count: taskDistribution[key].length,
+        duration: _durationToSeconds(sum) / 60 / 60
+      };
     }
     return taskDistribution;
   }
@@ -249,7 +257,7 @@ ${dataRows}`;
       return _entryFromRow(runningTask);
     return false;
   }
-  async function _logStartTime(app, dash, target, currentTime, options2) {
+  async function _logStartTime(app, dash, target, currentTime, options) {
     console.log(`_logStartTime(${dash}, ${target}, ${currentTime})`);
     let content = await app.getNoteContent(dash);
     let tableDict = _markdownTableToDict(content);
@@ -258,16 +266,16 @@ ${dataRows}`;
     console.log(tableDict);
     let updatedTableMarkdown = _dictToMarkdownTable(tableDict);
     console.log(updatedTableMarkdown);
-    const section = { heading: { text: options2.sectionTitleDashboardTimeEntries } };
+    const section = { heading: { text: options.sectionTitleDashboardTimeEntries } };
     await app.replaceNoteContent(dash, updatedTableMarkdown, { section });
     return true;
   }
-  async function _stopTask(app, dash, options2) {
+  async function _stopTask(app, dash, options) {
     let content = await app.getNoteContent(dash);
     let tableDict = _markdownTableToDict(content);
     tableDict = _addEndTimeToDict(tableDict, await _getCurrentTime());
     let updatedTableMarkdown = _dictToMarkdownTable(tableDict);
-    const section = { heading: { text: options2.sectionTitleDashboardTimeEntries } };
+    const section = { heading: { text: options.sectionTitleDashboardTimeEntries } };
     await app.replaceNoteContent(dash, updatedTableMarkdown, { section });
     return true;
   }
@@ -327,11 +335,11 @@ ${dataRows}`;
   }
 
   // lib/reports.js
-  async function _createLegendSquare(color, options2) {
+  async function _createLegendSquare(color, options) {
     console.log(`_createLegendSquare(${color})`);
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
-    const size = options2.legendSquareSize;
+    const size = options.legendSquareSize;
     canvas.width = size;
     canvas.height = size;
     ctx.fillStyle = color;
@@ -350,29 +358,64 @@ ${dataRows}`;
     console.log(blob);
     return await _dataURLFromBlob(blob);
   }
-  async function _generateRadar(taskDistribution, options2) {
-    console.log(`generateRadar(${taskDistribution})`);
-    const labels = Object.keys(taskDistribution);
-    const data = Object.values(taskDistribution);
+  async function _generateRadar(taskDistribution, options) {
+    console.log(`_generateRadar(${taskDistribution})`);
+    let radarLabels = {
+      q1: "Q1: Important & Urgent",
+      q2: "Q2: Important",
+      q3: "Q3: Urgent",
+      q4: "Q4: Neither"
+    };
+    let data = {
+      labels: Object.keys(taskDistribution),
+      datasets: [
+        {
+          label: "Number of tasks",
+          // Convert from number of tasks to percentage of total number of tasks
+          data: Object.values(taskDistribution).map(
+            (e) => e.count / Object.values(taskDistribution).reduce((pv, cv) => pv + cv.count, 0) * 100
+          ),
+          fill: true,
+          backgroundColor: "rgba(255, 99, 132, 0.2)",
+          borderColor: "rgb(255, 99, 132)",
+          pointBackgroundColor: "rgb(255, 99, 132)",
+          pointBorderColor: "#fff",
+          pointHoverBackgroundColor: "#fff",
+          pointHoverBorderColor: "rgb(255, 99, 132)"
+        },
+        {
+          label: "Time spent",
+          // Convert from duration to percentage of total duration
+          data: Object.values(taskDistribution).map(
+            (e) => e.duration / Object.values(taskDistribution).reduce((pv, cv) => pv + cv.duration, 0) * 100
+          ),
+          fill: true,
+          backgroundColor: "rgba(54, 162, 235, 0.2)",
+          borderColor: "rgb(54, 162, 235)",
+          pointBackgroundColor: "rgb(54, 162, 235)",
+          pointBorderColor: "#fff",
+          pointHoverBackgroundColor: "#fff",
+          pointHoverBorderColor: "rgb(54, 162, 235)"
+        }
+      ]
+    };
     const chart = new QuickChart();
+    chart.setVersion("4");
     chart.setWidth(500);
     chart.setWidth(500);
-    chart.setconfig({
+    chart.setConfig({
       type: "radar",
-      data: {
-        labels,
-        datasets: [{ data }]
-      }
+      data
     });
     console.log(chart.getUrl());
     let response = await fetch(chart.getUrl());
     let blob = await response.blob();
-    let dataUR = await _dataURLFromBlob(blob);
+    let dataURL = await _dataURLFromBlob(blob);
     return dataURL;
   }
-  async function _generatePie(taskDurations, options2) {
+  async function _generatePie(taskDurations, options) {
     console.log(`generatePie(${taskDurations})`);
-    const labels = taskDurations.map((task) => _getEntryName(task));
+    const labels = taskDurations.map((task) => task["Entry Name"]);
     console.log(labels);
     const data = taskDurations.map((task) => _durationToSeconds(task["Duration"]));
     console.log(data);
@@ -384,7 +427,7 @@ ${dataRows}`;
       type: "pie",
       data: {
         labels,
-        datasets: [{ data, backgroundColor: options2.colors }]
+        datasets: [{ data, backgroundColor: options.colors }]
       },
       options: {
         plugins: {
@@ -415,16 +458,16 @@ ${dataRows}`;
     console.log(chart.getUrl());
     let response = await fetch(chart.getUrl());
     let blob = await response.blob();
-    let dataURL2 = await _dataURLFromBlob(blob);
-    return dataURL2;
+    let dataURL = await _dataURLFromBlob(blob);
+    return dataURL;
   }
-  async function _generateDurationsReport(app, options2, resultsHandle, taskDurations) {
+  async function _generateDurationsReport(app, options, resultsHandle, taskDurations) {
     console.log(`Creating legend squares...`);
     let legendSquares = [];
     for (let i = 0; i < taskDurations.length; i++) {
       let fileURL2 = await app.attachNoteMedia(
         resultsHandle,
-        await _createLegendSquare(options2.colors[i], options2)
+        await _createLegendSquare(options.colors[i], options)
       );
       legendSquares.push(`![](${fileURL2})`);
     }
@@ -441,34 +484,35 @@ ${dataRows}`;
     console.log(`Generating QuickChart...`);
     let pieDataURL;
     try {
-      pieDataURL = await _generatePie(taskDurations, options2);
+      pieDataURL = await _generatePie(taskDurations, options);
     } catch (err) {
       pieDataURL = "";
     }
     const fileURL = await app.attachNoteMedia(resultsHandle, pieDataURL);
     await app.insertNoteContent(resultsHandle, `![](${fileURL})`);
   }
-  async function _generateQuadrantReport(app, resultsHandle, taskDistribution) {
-    let totalLength = Object.values(taskDistribution).reduce((pv, cv) => pv + cv.length, 0);
+  async function _generateQuadrantReport(app, resultsHandle, taskDistribution, options) {
+    let totalLength = Object.values(taskDistribution).reduce((pv, cv) => pv + cv.count, 0);
     let percentages = {
-      q1: taskDistribution.q1.length / totalLength,
-      q2: taskDistribution.q2.length / totalLength,
-      q3: taskDistribution.q3.length / totalLength,
-      q4: taskDistribution.q4.length / totalLength
+      q1: taskDistribution.q1.count / totalLength,
+      q2: taskDistribution.q2.count / totalLength,
+      q3: taskDistribution.q3.count / totalLength,
+      q4: taskDistribution.q4.count / totalLength
     };
     let percentagesDict = Object.keys(percentages).map((key) => {
-      return { "Quadrant": key, "Percentage": percentages[key] };
+      return { "Quadrant": key, "Percentage": `${percentages[key] * 100}%` };
     });
     let resultsTable = _dictToMarkdownTable(percentagesDict);
     console.log(resultsTable);
     console.log(`Inserting results in report note...`);
     await app.insertNoteContent(resultsHandle, resultsTable);
     ;
-    console.log(`Generating QuickChart...`);
+    console.log(`Generating QuickChart (radar)...`);
     let pieDataURL;
     try {
       pieDataURL = await _generateRadar(taskDistribution, options);
     } catch (err) {
+      console.log(err);
       pieDataURL = "";
     }
     const fileURL = await app.attachNoteMedia(resultsHandle, pieDataURL);
@@ -793,7 +837,7 @@ ${dataRows}`;
       }
       await _generateDurationsReport(app, this.options, resultsHandle, taskDurations);
       let taskDistribution = await _getTaskDistribution(app, dash, null, startOfDay, endOfDay);
-      await _generateQuadrantReport(app, resultsHandle, taskDistribution);
+      await _generateQuadrantReport(app, resultsHandle, taskDistribution, this.options);
       let alertAction = await app.alert(
         `Daily report generated successfully!`,
         {
