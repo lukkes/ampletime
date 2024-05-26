@@ -26,7 +26,7 @@
       const cells = row.split("|").slice(1, -1).map((cell) => cell.trim());
       const rowObj = {};
       headers.forEach((header, i) => {
-        rowObj[header] = cells[i] || null;
+        rowObj[header] = cells[i] || "";
       });
       return rowObj;
     });
@@ -240,7 +240,7 @@ ${dataRows}`;
     console.log(entries);
     if (!entries)
       return;
-    let taskDurations = _calculateTaskDurations(entries);
+    let taskDurations = await _calculateTaskDurations(entries);
     console.log(taskDurations);
     return taskDurations;
   }
@@ -581,7 +581,8 @@ ${dataRows}`;
     //===================================================================================
     appOption: {
       "Start...": async function(app) {
-        let target = this._promptTarget(app);
+        let target = await this._promptTarget(app);
+        console.log(target);
         try {
           await this._start(app, target);
         } catch (err) {
@@ -684,7 +685,7 @@ ${dataRows}`;
       let isTaskRunning = await _isTaskRunning(app, dash);
       console.log(`Task running: ${isTaskRunning}`);
       if (isTaskRunning) {
-        let runningTaskName = _getLinkText(isTaskRunning);
+        let runningTaskName = _getEntryName(isTaskRunning);
         if (this.options.alwaysStopRunningTask) {
           await _stopTask(app, dash, this.options);
         } else {
@@ -717,6 +718,8 @@ ${dataRows}`;
      */
     async _start(app, target) {
       let dash = await this._preStart(app);
+      if (!dash)
+        return;
       let toStart;
       if (target.score !== void 0) {
         let source = await app.findNote({ uuid: target.noteUUID });
@@ -727,7 +730,7 @@ ${dataRows}`;
             taskName: `${target.content.slice(0, 20)} (${target.uuid})`
           }
         };
-      } else if (target.body !== void 0) {
+      } else {
         toStart = {
           type: "project",
           data: {
@@ -750,6 +753,8 @@ ${dataRows}`;
         startDate,
         endDate
       );
+      console.log("RUNNING");
+      console.log(runningTaskDuration);
       if (runningTaskDuration.length === 0)
         runningTaskDuration = [{ "Duration": "00:00:00" }];
       let alertAction = await app.alert(
@@ -785,7 +790,7 @@ ${dataRows}`;
       endDate.setHours(23, 59, 59, 999);
       let runningTaskDuration = await _getTaskDurations(app, dash, isTaskRunning, startDate, endDate);
       let alertAction = await app.alert(
-        `${_getLinkText(isTaskRunning)} stopped successfully. Logged today: ${runningTaskDuration[0]["Duration"]}`,
+        `${_getEntryName(isTaskRunning)} stopped successfully. Logged today: ${runningTaskDuration[0]["Duration"]}`,
         {
           actions: [{ label: "Visit Dashboard", icon: "assignment" }]
         }
@@ -793,7 +798,7 @@ ${dataRows}`;
       if (alertAction === 0) {
         app.navigate(`https://www.amplenote.com/notes/${dash.uuid}`);
       }
-      console.log(`${_getLinkText(isTaskRunning)} stopped successfully. Logged today: ${runningTaskDuration[0]["Duration"]}`);
+      console.log(`${_getEntryName(isTaskRunning)} stopped successfully. Logged today: ${runningTaskDuration[0]["Duration"]}`);
       return true;
     },
     async _generateReport(app, reportType) {
@@ -920,7 +925,7 @@ ${dataRows}`;
     // ==== AN UX ====
     //=================================================================================== 
     async _promptTarget(app) {
-      return app.prompt(
+      return await app.prompt(
         "What are you working on?",
         {
           inputs: [
