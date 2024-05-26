@@ -582,7 +582,6 @@ ${dataRows}`;
     appOption: {
       "Start...": async function(app) {
         let target = await this._promptTarget(app);
-        console.log(target);
         try {
           await this._start(app, target);
         } catch (err) {
@@ -753,8 +752,6 @@ ${dataRows}`;
         startDate,
         endDate
       );
-      console.log("RUNNING");
-      console.log(runningTaskDuration);
       if (runningTaskDuration.length === 0)
         runningTaskDuration = [{ "Duration": "00:00:00" }];
       let alertAction = await app.alert(
