@@ -739,8 +739,6 @@ ${dataRows}`;
         };
       }
       console.log(`Starting ${toStart.type} ${_getEntryName(toStart)}...`);
-      let currentTime = await _getCurrentTime();
-      await _logStartTime(app, dash, toStart, currentTime, this.options);
       let startDate = /* @__PURE__ */ new Date();
       startDate.setHours(0, 0, 0, 0);
       let endDate = new Date(startDate);
@@ -763,6 +761,9 @@ ${dataRows}`;
       if (alertAction === 0) {
         app.navigate(`https://www.amplenote.com/notes/${dash.uuid}`);
       }
+      let currentTime = await _getCurrentTime();
+      await _logStartTime(app, dash, toStart, currentTime, this.options);
+      app.openSidebarEmbed(1, _getEntryName(toStart), runningTaskDuration[0]["Duration"]);
       console.log(`${target.name} started successfully. Logged today: ${runningTaskDuration[0]["Duration"]}`);
       return true;
     },
@@ -942,6 +943,76 @@ ${dataRows}`;
         script.onerror = reject;
         document.head.appendChild(script);
       });
+    },
+    renderEmbed(app, ...args) {
+      let currentRunningTaskName = args[0];
+      let currentRunningTaskTime = args[1];
+      return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Stopwatch</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+        }
+        .stopwatch {
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="stopwatch">
+        <div id="currentTask">${currentRunningTaskName}</div>
+        <div id="currentTimer">00:00:00</div>
+        <div id="startTime">Start Time: </div>
+        <div id="totalRunningTime">Total Running Time Today: </div>
+    </div>
+
+    <script>
+        let startTime;
+        let timerInterval;
+
+        // Function to format time in HH:MM:SS
+        function formatTime(seconds) {
+            const hrs = String(Math.floor(seconds / 3600)).padStart(2, '0');
+            const mins = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+            const secs = String(seconds % 60).padStart(2, '0');
+            return \`\${hrs}:\${mins}:\${secs}\`;
+        }
+
+        // Function to get total running time for today (mock implementation)
+        function getTotalRunningTimeForToday() {
+            // Assuming this function returns the total running time for today in seconds
+            return ${currentRunningTaskTime};
+        }
+
+        // Function to start the stopwatch
+        function startStopwatch() {
+            startTime = new Date();
+            document.getElementById('startTime').innerText = \`Start Time: \${startTime.toLocaleTimeString()} \`;
+            document.getElementById('totalRunningTime').innerText = \`Total Running Time Today: \${formatTime(getTotalRunningTimeForToday())} \`;
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        // Function to update the current timer
+        function updateTimer() {
+            const now = new Date();
+            const elapsedTime = Math.floor((now - startTime) / 1000);
+            document.getElementById('currentTimer').innerText = formatTime(elapsedTime);
+        }
+
+        // Start the stopwatch when the page loads
+        // window.onload = startStopwatch;
+        startStopwatch();
+    </script>
+</body>
+</html>
+`;
     }
   };
   var plugin_default = plugin;
