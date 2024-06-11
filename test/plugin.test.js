@@ -5,6 +5,7 @@
 
 import {mockApp, mockNote, mockPlugin, mockTask} from "../lib/test-helpers.js";
 import {_getISOStringFromDate} from "../lib/date-time.js"
+import {_generateReport, _start, _stop} from "../lib/ampletime.js";
 
 describe("within a test environment", () => {
     describe("with a newly started project", () => {
@@ -20,8 +21,8 @@ describe("within a test environment", () => {
 | Project Name | Task Name | Start Time | End Time |
 | [Test target](https://www.amplenote.com/notes/2) |  |`;
 
-                await plugin._start(app, target)
-                // await expect(plugin._start(app, target)).resolves.not.toThrow();
+                await _start(app, plugin.options, target)
+                // await expect(_start(app, plugin.options, target)).resolves.not.toThrow();
                 expect(app._noteRegistry["1"].body).toContain(expectedDash);
                 expect(app._noteRegistry["1"].body).toMatch(/\| .+ \| [0-9]+-[0-9]+.+ \|  \|/s);
             })
@@ -42,7 +43,7 @@ describe("within a test environment", () => {
 | Project Name | Task Name | Start Time | End Time |
 | [Test target](https://www.amplenote.com/notes/2) |  |`;
 
-                await expect(plugin._start(app, target)).resolves.not.toThrow();
+                await expect(_start(app, plugin.options, target)).resolves.not.toThrow();
                 expect(app._noteRegistry["1"].body).toContain(expectedDash);
                 expect(app._noteRegistry["1"].body).toMatch(/\| .+ \| [0-9]+-[0-9]+.+ \|  \|/s);
             });
@@ -67,7 +68,7 @@ describe("within a test environment", () => {
             //----------------------------------------------------------------------------------------------------------
             it("should offer to stop previous task?", async () => {
                 await app.createNote(plugin.options.noteTitleDashboard, [plugin.options.noteTagDashboard], dash, "1");
-                await expect(plugin._start(app, target)).resolves.not.toThrow();
+                await expect(_start(app, plugin.options, target)).resolves.not.toThrow();
                 expect(app._noteRegistry["1"].body).toContain(expectedDash);
                 expect(app._noteRegistry["1"].body.split("\n")[4]).toMatch(/\| .+ \| [0-9]+-[0-9]+.+ \|  \|/s);
                 expect(app._noteRegistry["1"].body.split("\n")[5]).toContain("| [Test target](https://www.amplenote.com/notes/2) |  | some date |");
@@ -92,7 +93,7 @@ describe("within a test environment", () => {
 | Project Name | Task Name | Start Time | End Time |
 | [Test target](https://www.amplenote.com/notes/2) | Test target task (1) |`;
 
-               await expect(plugin._start(app, target)).resolves.not.toThrow();
+               await expect(_start(app, plugin.options, target)).resolves.not.toThrow();
                expect(app._noteRegistry["1"].body).toContain(expectedDash);
                expect(app._noteRegistry["1"].body).toMatch(/\| .+ \| [0-9]+-[0-9]+.+ \|  \|/s);
            })
@@ -124,7 +125,7 @@ describe("within a test environment", () => {
             it("should report the task", async () => {
                 await app.createNote(plugin.options.noteTitleDashboard, plugin.options.noteTagDashboard, dash, "1");
                 // await plugin._generateReport(app, "today");
-                await expect(plugin._generateReport(app, "today")).resolves.not.toThrow();
+                await expect(_generateReport(app, plugin.options, "today")).resolves.not.toThrow();
                 let resultsNote = app._noteRegistry["2"];
                 expect(resultsNote.body).toContain(`| | | |
 |-|-|-|
@@ -165,7 +166,7 @@ describe("within a test environment", () => {
                 await app.createTask("Task", "4", "2", false, false);
 
                 // await plugin._generateReport(app, "today");
-                await expect(plugin._generateReport(app, "today")).resolves.not.toThrow();
+                await expect(_generateReport(app, plugin.options, "today")).resolves.not.toThrow();
                 let resultsNote = app._noteRegistry["2"];
                 expect(resultsNote.body).toContain(`| | |
 |-|-|
@@ -205,8 +206,8 @@ describe("within a test environment", () => {
             //----------------------------------------------------------------------------------------------------------
             it("should offer to stop previous task?", async () => {
                 await app.createNote(plugin.options.noteTitleDashboard, [plugin.options.noteTagDashboard], dash, "1");
-                await plugin._stop(app);
-                // await expect(plugin._stop(app)).resolves.not.toThrow();
+                await _stop(app, plugin.options);
+                // await expect(_stop(app)).resolves.not.toThrow();
                 expect(app._noteRegistry["1"].body).toContain(expectedDash);
                 expect(app._noteRegistry["1"].body.split("\n")[4]).toContain("| [Test target](https://www.amplenote.com/notes/2) |  | some date |");
                 expect(app._noteRegistry["1"].body.split("\n")[4]).toMatch(/.+ \| some date \| [0-9]+-[0-9]+.+ \|/s);
