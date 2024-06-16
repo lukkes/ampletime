@@ -277,7 +277,7 @@ ${dataRows}`;
       if (result === "resume") {
         console.log("Continuing previous uncompleted session.");
         let startTime = await _promptStartTime(app);
-        await _startSession(app, options, dash, startTime, isSessionRunning["Cycle Count"], isSessionRunning["Cycle progress"] + 1);
+        await _startSession(app, options, dash, startTime, isSessionRunning["Cycle Count"], Number(isSessionRunning["Cycle Progress"]) + 1);
         return false;
       } else if (result === "abandon") {
         console.log(`Stopping current task...`);
@@ -295,7 +295,7 @@ ${dataRows}`;
     const newRow = {
       // "Session ID": Math.max(dash.map(e => e["Session ID"])) + 1,
       "Source Note": _makeNoteLink(await app.findNote({ uuid: app.context.noteUUID })),
-      "Start Time": /* @__PURE__ */ new Date(),
+      "Start Time": await _getCurrentTime(),
       "Cycle Count": cycleCount,
       "Cycle Progress": 0,
       "End Time": ""
