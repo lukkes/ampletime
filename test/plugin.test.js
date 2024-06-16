@@ -4,8 +4,9 @@
 
 
 import {mockApp, mockNote, mockPlugin, mockTask} from "../lib/test-helpers.js";
-import {_getISOStringFromDate} from "../lib/date-time.js"
-import {_generateReport, _start, _stop} from "../lib/ampletime.js";
+import {_getISOStringFromDate} from "../lib/ampletime/date-time.js"
+import {_generateReport, _start, _stop} from "../lib/ampletime/ampletime.js";
+import {_focus, _startSession} from "../lib/amplefocus/amplefocus.js";
 
 describe("within a test environment", () => {
     describe("with a newly started project", () => {
@@ -21,8 +22,8 @@ describe("within a test environment", () => {
 | Project Name | Task Name | Start Time | End Time |
 | [Test target](https://www.amplenote.com/notes/2) |  |`;
 
-                await _start(app, plugin.options, target)
-                // await expect(_start(app, plugin.options, target)).resolves.not.toThrow();
+                // await _start(app, plugin.options.ampletime, target)
+                await expect(_start(app, plugin.options.ampletime, target)).resolves.not.toThrow();
                 expect(app._noteRegistry["1"].body).toContain(expectedDash);
                 expect(app._noteRegistry["1"].body).toMatch(/\| .+ \| [0-9]+-[0-9]+.+ \|  \|/s);
             })
@@ -36,14 +37,14 @@ describe("within a test environment", () => {
 
             //----------------------------------------------------------------------------------------------------------
             it("should create a new entry in the dashboard", async () => {
-                await app.createNote(plugin.options.noteTitleDashboard, [plugin.options.noteTagDashboard], "", "1");
+                await app.createNote(plugin.options.ampletime.noteTitleDashboard, [plugin.options.ampletime.noteTagDashboard], "", "1");
                 let expectedDash = `## Time entries
 | | | | |
 |-|-|-|-|
 | Project Name | Task Name | Start Time | End Time |
 | [Test target](https://www.amplenote.com/notes/2) |  |`;
 
-                await expect(_start(app, plugin.options, target)).resolves.not.toThrow();
+                await expect(_start(app, plugin.options.ampletime, target)).resolves.not.toThrow();
                 expect(app._noteRegistry["1"].body).toContain(expectedDash);
                 expect(app._noteRegistry["1"].body).toMatch(/\| .+ \| [0-9]+-[0-9]+.+ \|  \|/s);
             });
@@ -52,7 +53,7 @@ describe("within a test environment", () => {
         describe("with a running task", () => {
             const app = mockApp();
             const plugin = mockPlugin();
-            plugin.options.alwaysStopRunningTask = true;
+            plugin.options.ampletime.alwaysStopRunningTask = true;
             const target = mockNote("", "Test target", "2", ["tag1"]);
             const dash = `## Time entries
 | | | | |
@@ -67,8 +68,8 @@ describe("within a test environment", () => {
 
             //----------------------------------------------------------------------------------------------------------
             it("should offer to stop previous task?", async () => {
-                await app.createNote(plugin.options.noteTitleDashboard, [plugin.options.noteTagDashboard], dash, "1");
-                await expect(_start(app, plugin.options, target)).resolves.not.toThrow();
+                await app.createNote(plugin.options.ampletime.noteTitleDashboard, [plugin.options.ampletime.noteTagDashboard], dash, "1");
+                await expect(_start(app, plugin.options.ampletime, target)).resolves.not.toThrow();
                 expect(app._noteRegistry["1"].body).toContain(expectedDash);
                 expect(app._noteRegistry["1"].body.split("\n")[4]).toMatch(/\| .+ \| [0-9]+-[0-9]+.+ \|  \|/s);
                 expect(app._noteRegistry["1"].body.split("\n")[5]).toContain("| [Test target](https://www.amplenote.com/notes/2) |  | some date |");
@@ -86,14 +87,14 @@ describe("within a test environment", () => {
             //----------------------------------------------------------------------------------------------------------
            it("should create a new entry in the dashboard", async () => {
                const sourceNoteUUID = await app.createNote("Test target", ["tag1"], "", "2");
-               await app.createNote(plugin.options.noteTitleDashboard, [plugin.options.noteTagDashboard], "", "1");
+               await app.createNote(plugin.options.ampletime.noteTitleDashboard, [plugin.options.ampletime.noteTagDashboard], "", "1");
                let expectedDash = `## Time entries
 | | | | |
 |-|-|-|-|
 | Project Name | Task Name | Start Time | End Time |
 | [Test target](https://www.amplenote.com/notes/2) | Test target task (1) |`;
 
-               await expect(_start(app, plugin.options, target)).resolves.not.toThrow();
+               await expect(_start(app, plugin.options.ampletime, target)).resolves.not.toThrow();
                expect(app._noteRegistry["1"].body).toContain(expectedDash);
                expect(app._noteRegistry["1"].body).toMatch(/\| .+ \| [0-9]+-[0-9]+.+ \|  \|/s);
            })
@@ -123,9 +124,9 @@ describe("within a test environment", () => {
 
             //----------------------------------------------------------------------------------------------------------
             it("should report the task", async () => {
-                await app.createNote(plugin.options.noteTitleDashboard, plugin.options.noteTagDashboard, dash, "1");
+                await app.createNote(plugin.options.ampletime.noteTitleDashboard, plugin.options.ampletime.noteTagDashboard, dash, "1");
                 // await plugin._generateReport(app, "today");
-                await expect(_generateReport(app, plugin.options, "today")).resolves.not.toThrow();
+                await expect(_generateReport(app, plugin.options.ampletime, "today")).resolves.not.toThrow();
                 let resultsNote = app._noteRegistry["2"];
                 expect(resultsNote.body).toContain(`| | | |
 |-|-|-|
@@ -159,14 +160,14 @@ describe("within a test environment", () => {
 
             //----------------------------------------------------------------------------------------------------------
             it("should report the four quadrants", async () => {
-                await app.createNote(plugin.options.noteTitleDashboard, plugin.options.noteTagDashboard, dash, "1");
+                await app.createNote(plugin.options.ampletime.noteTitleDashboard, plugin.options.ampletime.noteTagDashboard, dash, "1");
                 await app.createTask("Task (extra) ()", "1", "2", true, true);
                 await app.createTask("Task", "2", "2", true, false);
                 await app.createTask("Task", "3", "2", false, true);
                 await app.createTask("Task", "4", "2", false, false);
 
                 // await plugin._generateReport(app, "today");
-                await expect(_generateReport(app, plugin.options, "today")).resolves.not.toThrow();
+                await expect(_generateReport(app, plugin.options.ampletime, "today")).resolves.not.toThrow();
                 let resultsNote = app._noteRegistry["2"];
                 expect(resultsNote.body).toContain(`| | |
 |-|-|
@@ -190,7 +191,7 @@ describe("within a test environment", () => {
         describe("with a running task", () => {
             const app = mockApp();
             const plugin = mockPlugin();
-            plugin.options.alwaysStopRunningTask = true;
+            plugin.options.ampletime.alwaysStopRunningTask = true;
             const target = mockNote("", "Test target", "2", ["tag1"]);
             const dash = `## Time entries
 | | | | |
@@ -205,9 +206,9 @@ describe("within a test environment", () => {
 
             //----------------------------------------------------------------------------------------------------------
             it("should offer to stop previous task?", async () => {
-                await app.createNote(plugin.options.noteTitleDashboard, [plugin.options.noteTagDashboard], dash, "1");
-                await _stop(app, plugin.options);
-                // await expect(_stop(app)).resolves.not.toThrow();
+                await app.createNote(plugin.options.ampletime.noteTitleDashboard, [plugin.options.ampletime.noteTagDashboard], dash, "1");
+                // await _stop(app, plugin.options.ampletime);
+                await expect(_stop(app, plugin.options.ampletime)).resolves.not.toThrow();
                 expect(app._noteRegistry["1"].body).toContain(expectedDash);
                 expect(app._noteRegistry["1"].body.split("\n")[4]).toContain("| [Test target](https://www.amplenote.com/notes/2) |  | some date |");
                 expect(app._noteRegistry["1"].body.split("\n")[4]).toMatch(/.+ \| some date \| [0-9]+-[0-9]+.+ \|/s);
