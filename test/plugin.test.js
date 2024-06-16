@@ -6,14 +6,17 @@
 import {mockApp, mockNote, mockPlugin, mockPrompter, mockTask} from "../lib/test-helpers.js";
 import {_getISOStringFromDate} from "../lib/ampletime/date-time.js"
 import {_generateReport, _start, _stop} from "../lib/ampletime/ampletime.js";
-import {_focus, _generateCycleOptions, _generateStartTimeOptions} from "../lib/amplefocus/amplefocus.js";
 
 describe("within a test environment", () => {
+    let app, plugin, target, dash, expectedDash;
     describe("with a newly started project", () => {
         describe("with no dashboard", () => {
-            const app = mockApp();
-            const plugin = mockPlugin();
-            const target = mockNote("", "Test target", "2", ["tag1"]);
+            beforeEach(() => {
+                app = mockApp();
+                plugin = mockPlugin();
+                target = mockNote("", "Test target", "2", ["tag1"]);
+            })
+
             //----------------------------------------------------------------------------------------------------------
             it("should create the dashboard and the first entry", async () => {
                 let expectedDash = `## Time entries
@@ -31,9 +34,11 @@ describe("within a test environment", () => {
         })
 
         describe("with an empty dashboard", () => {
-            const app = mockApp();
-            const plugin = mockPlugin();
-            const target = mockNote("", "Test target", "2", ["tag1"]);
+            beforeEach(() => {
+                app = mockApp();
+                plugin = mockPlugin();
+                target = mockNote("", "Test target", "2", ["tag1"]);
+            });
 
             //----------------------------------------------------------------------------------------------------------
             it("should create a new entry in the dashboard", async () => {
@@ -51,20 +56,22 @@ describe("within a test environment", () => {
         });
 
         describe("with a running task", () => {
-            const app = mockApp();
-            const plugin = mockPlugin();
-            plugin.options.ampletime.alwaysStopRunningTask = true;
-            const target = mockNote("", "Test target", "2", ["tag1"]);
-            const dash = `## Time entries
+            beforeEach(() => {
+                app = mockApp();
+                plugin = mockPlugin();
+                plugin.options.ampletime.alwaysStopRunningTask = true;
+                target = mockNote("", "Test target", "2", ["tag1"]);
+                dash = `## Time entries
 | | | | |
 |-|-|-|-|
 | Project Name | Task Name | Start Time | End Time |
 | [Test target](https://www.amplenote.com/notes/2) |  | some date |  |`;
-            const expectedDash = `## Time entries
+                expectedDash = `## Time entries
 | | | | |
 |-|-|-|-|
 | Project Name | Task Name | Start Time | End Time |
 | [Test target](https://www.amplenote.com/notes/2) |  |`;
+            });
 
             //----------------------------------------------------------------------------------------------------------
             it("should offer to stop previous task?", async () => {
@@ -80,9 +87,11 @@ describe("within a test environment", () => {
 
     describe("with a newly started task", () => {
         describe("with an empty dashboard", () => {
-            const app = mockApp();
-            const plugin = mockPlugin();
-            const target = mockTask("Test target task", "1", "2");
+            beforeEach(() => {
+                app = mockApp();
+                plugin = mockPlugin();
+                target = mockTask("Test target task", "1", "2");
+            });
 
             //----------------------------------------------------------------------------------------------------------
            it("should create a new entry in the dashboard", async () => {
@@ -104,23 +113,25 @@ describe("within a test environment", () => {
 
     describe("with a report Tracked Today", () => {
         describe("with one completed task", () => {
-            const app = mockApp();
-            const plugin = mockPlugin();
-            mockNote("", "Test target", "2", ["tag1"]);
-            let dateStart, dateStop;
-            dateStart = new Date(Date.now());
-            dateStart.setHours(20);
-            dateStart.setMinutes(0);
-            dateStart.setSeconds(0);
+            beforeEach(() => {
+                app = mockApp();
+                plugin = mockPlugin();
+                mockNote("", "Test target", "2", ["tag1"]);
+                let dateStart, dateStop;
+                dateStart = new Date(Date.now());
+                dateStart.setHours(20);
+                dateStart.setMinutes(0);
+                dateStart.setSeconds(0);
 
-            dateStop = new Date(dateStart);
-            dateStop.setHours(21);
+                dateStop = new Date(dateStart);
+                dateStop.setHours(21);
 
-            const dash = `## Time entries
+                dash = `## Time entries
 | | | | |
 |-|-|-|-|
 | Project Name | Task Name | Start Time | End Time |
 | [Test target](https://www.amplenote.com/notes/2) |  | ${_getISOStringFromDate(dateStart)} | ${_getISOStringFromDate(dateStop)} |`
+            });
 
             //----------------------------------------------------------------------------------------------------------
             it("should report the task", async () => {
@@ -137,19 +148,20 @@ describe("within a test environment", () => {
 
     })
         describe("with four complete tasks in different quadrants", () => {
-            const app = mockApp();
-            const plugin = mockPlugin();
-            // const sourceNote = mockNote("", "Test target", "2", ["tag1"]);
-            let dateStart, dateStop;
-            dateStart = new Date(Date.now());
-            dateStart.setHours(20);
-            dateStart.setMinutes(0);
-            dateStart.setSeconds(0);
+            beforeEach(() => {
+                app = mockApp();
+                plugin = mockPlugin();
+                // const sourceNote = mockNote("", "Test target", "2", ["tag1"]);
+                let dateStart, dateStop;
+                dateStart = new Date(Date.now());
+                dateStart.setHours(20);
+                dateStart.setMinutes(0);
+                dateStart.setSeconds(0);
 
-            dateStop = new Date(dateStart);
-            dateStop.setHours(21);
+                dateStop = new Date(dateStart);
+                dateStop.setHours(21);
 
-            const dash = `## Time entries
+                dash = `## Time entries
 | | | | |
 |-|-|-|-|
 | Project Name | Task Name | Start Time | End Time |
@@ -157,6 +169,7 @@ describe("within a test environment", () => {
 | [Test target](https://www.amplenote.com/notes/2) | Task (2) | ${_getISOStringFromDate(dateStart)} | ${_getISOStringFromDate(dateStop)} |
 | [Test target](https://www.amplenote.com/notes/2) | Task (3) | ${_getISOStringFromDate(dateStart)} | ${_getISOStringFromDate(dateStop)} |
 | [Test target](https://www.amplenote.com/notes/2) | Task (4) | ${_getISOStringFromDate(dateStart)} | ${_getISOStringFromDate(dateStop)} |`
+            });
 
             //----------------------------------------------------------------------------------------------------------
             it("should report the four quadrants", async () => {
@@ -182,20 +195,22 @@ describe("within a test environment", () => {
 
     describe("with a stop command issues", () => {
         describe("with a running task", () => {
-            const app = mockApp();
-            const plugin = mockPlugin();
-            plugin.options.ampletime.alwaysStopRunningTask = true;
-            const target = mockNote("", "Test target", "2", ["tag1"]);
-            const dash = `## Time entries
+            beforeEach(() => {
+                app = mockApp();
+                plugin = mockPlugin();
+                plugin.options.ampletime.alwaysStopRunningTask = true;
+                target = mockNote("", "Test target", "2", ["tag1"]);
+                dash = `## Time entries
 | | | | |
 |-|-|-|-|
 | Project Name | Task Name | Start Time | End Time |
 | [Test target](https://www.amplenote.com/notes/2) |  | some date |  |`;
-            const expectedDash = `## Time entries
+                expectedDash = `## Time entries
 | | | | |
 |-|-|-|-|
 | Project Name | Task Name | Start Time | End Time |
 | [Test target](https://www.amplenote.com/notes/2) |  |`;
+            });
 
             //----------------------------------------------------------------------------------------------------------
             it("should offer to stop previous task?", async () => {
@@ -217,15 +232,19 @@ describe("within a test environment", () => {
 
     describe("with a newly started focus", () => {
         describe("with no dashboard", () => {
-            const app = mockApp();
-            const plugin = mockPlugin();
-            plugin.options.amplefocus.workDuration = 0.1 * 1000;
-            plugin.options.amplefocus.breakDuration = 0.05 * 1000;
-            let startTime = _generateStartTimeOptions()[0].value;
-            plugin.options.amplefocus.mockPrompter = mockPrompter([
-                startTime,
-                _generateCycleOptions(startTime, plugin.options.amplefocus)[3].value, // Should be "5"
-            ]);
+            beforeEach(() => {
+                app = mockApp();
+                plugin = mockPlugin();
+                plugin.options.amplefocus.workDuration = 0.1 * 1000;
+                plugin.options.amplefocus.breakDuration = 0.05 * 1000;
+                // let startTime = _generateStartTimeOptions()[0].value;
+                plugin.options.amplefocus.mockPrompter = mockPrompter([
+                    {index: 0},
+                    {index: 3},
+                    // startTime,
+                    // _generateCycleOptions(startTime, plugin.options.amplefocus)[3].value, // Should be "5"
+                ]);
+            });
 
             //----------------------------------------------------------------------------------------------------------
             it("should create the dashboard and the first  entry", async () => {
@@ -247,10 +266,19 @@ describe("within a test environment", () => {
         })
 
         describe("with an empty dashboard", () => {
-            const app = mockApp();
-            const plugin = mockPlugin();
-            plugin.options.amplefocus.workDuration = 0.1 * 1000;
-            plugin.options.amplefocus.breakDuration = 0.05 * 1000;
+            beforeEach(() => {
+                app = mockApp();
+                plugin = mockPlugin();
+                plugin.options.amplefocus.workDuration = 0.1 * 1000;
+                plugin.options.amplefocus.breakDuration = 0.05 * 1000;
+                // let startTime = _generateStartTimeOptions()[0].value;
+                plugin.options.amplefocus.mockPrompter = mockPrompter([
+                    {index: 0},
+                    {index: 3},
+                    // startTime,
+                    // _generateCycleOptions(startTime, plugin.options.amplefocus)[3].value, // Should be "5"
+                ]);
+            });
 
             //----------------------------------------------------------------------------------------------------------
             it("should create a new entry in the dashboard", async () => {
