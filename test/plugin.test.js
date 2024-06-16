@@ -6,7 +6,7 @@
 import {mockApp, mockNote, mockPlugin, mockTask} from "../lib/test-helpers.js";
 import {_getISOStringFromDate} from "../lib/ampletime/date-time.js"
 import {_generateReport, _start, _stop} from "../lib/ampletime/ampletime.js";
-import {_focus, _startSession} from "../lib/amplefocus/amplefocus.js";
+import {_focus} from "../lib/amplefocus/amplefocus.js";
 
 describe("within a test environment", () => {
     describe("with a newly started project", () => {
@@ -25,7 +25,7 @@ describe("within a test environment", () => {
                 // await _start(app, plugin.options.ampletime, target)
                 await expect(_start(app, plugin.options.ampletime, target)).resolves.not.toThrow();
                 expect(app._noteRegistry["1"].body).toContain(expectedDash);
-                expect(app._noteRegistry["1"].body).toMatch(/\| .+ \| [0-9]+-[0-9]+.+ \|  \|/s);
+                expect(app._noteRegistry["1"].body).toMatch(/\| .+ \| [0-9]+-[0-9]+.+ \| {2}\|/s);
             })
 
         })
@@ -46,7 +46,7 @@ describe("within a test environment", () => {
 
                 await expect(_start(app, plugin.options.ampletime, target)).resolves.not.toThrow();
                 expect(app._noteRegistry["1"].body).toContain(expectedDash);
-                expect(app._noteRegistry["1"].body).toMatch(/\| .+ \| [0-9]+-[0-9]+.+ \|  \|/s);
+                expect(app._noteRegistry["1"].body).toMatch(/\| .+ \| [0-9]+-[0-9]+.+ \| {2}\|/s);
             });
         });
 
@@ -71,7 +71,7 @@ describe("within a test environment", () => {
                 await app.createNote(plugin.options.ampletime.noteTitleDashboard, [plugin.options.ampletime.noteTagDashboard], dash, "1");
                 await expect(_start(app, plugin.options.ampletime, target)).resolves.not.toThrow();
                 expect(app._noteRegistry["1"].body).toContain(expectedDash);
-                expect(app._noteRegistry["1"].body.split("\n")[4]).toMatch(/\| .+ \| [0-9]+-[0-9]+.+ \|  \|/s);
+                expect(app._noteRegistry["1"].body.split("\n")[4]).toMatch(/\| .+ \| [0-9]+-[0-9]+.+ \| {2}\|/s);
                 expect(app._noteRegistry["1"].body.split("\n")[5]).toContain("| [Test target](https://www.amplenote.com/notes/2) |  | some date |");
                 expect(app._noteRegistry["1"].body.split("\n")[5]).toMatch(/.+ \| some date \| [0-9]+-[0-9]+.+ \|/s);
             });
@@ -86,7 +86,7 @@ describe("within a test environment", () => {
 
             //----------------------------------------------------------------------------------------------------------
            it("should create a new entry in the dashboard", async () => {
-               const sourceNoteUUID = await app.createNote("Test target", ["tag1"], "", "2");
+               await app.createNote("Test target", ["tag1"], "", "2");
                await app.createNote(plugin.options.ampletime.noteTitleDashboard, [plugin.options.ampletime.noteTagDashboard], "", "1");
                let expectedDash = `## Time entries
 | | | | |
@@ -96,7 +96,7 @@ describe("within a test environment", () => {
 
                await expect(_start(app, plugin.options.ampletime, target)).resolves.not.toThrow();
                expect(app._noteRegistry["1"].body).toContain(expectedDash);
-               expect(app._noteRegistry["1"].body).toMatch(/\| .+ \| [0-9]+-[0-9]+.+ \|  \|/s);
+               expect(app._noteRegistry["1"].body).toMatch(/\| .+ \| [0-9]+-[0-9]+.+ \| {2}\|/s);
            })
         })
 
@@ -106,7 +106,7 @@ describe("within a test environment", () => {
         describe("with one completed task", () => {
             const app = mockApp();
             const plugin = mockPlugin();
-            const target = mockNote("", "Test target", "2", ["tag1"]);
+            mockNote("", "Test target", "2", ["tag1"]);
             let dateStart, dateStop;
             dateStart = new Date(Date.now());
             dateStart.setHours(20);
@@ -176,13 +176,6 @@ describe("within a test environment", () => {
 | q2 | 25% |
 | q3 | 25% |
 | q4 | 25% |`);
-
-                return
-                expect(resultsNote.body).toContain(`| | | |
-|-|-|-|
-| Color | Entry Name | Duration |
-| ![](undefined) | [Test target](https://www.amplenote.com/notes/2) | 01:00:00 |
-![](undefined)`);
             })
         })
     })
