@@ -257,7 +257,8 @@ describe("within a test environment", () => {
 | ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
 | [June 12th, 2024](https://www.amplenote.com/notes/1) |`;
                 let expectedRowMatch = /\|.*\|.*\| 5 \| 0 \|  \|/;
-                await plugin.insertText["Start Focus"](app);
+                // await plugin.insertText["Start Focus"](app);
+                await expect(plugin.insertText["Start Focus"](app)).resolves.not.toThrow();
                 // await _focus(app, plugin.options.amplefocus, new Date(), cycleCount);
                 // await expect(_focus(app, plugin.options.amplefocus, new Date(), cycleCount)).resolves.not.toThrow();
                 expect(app._noteRegistry["2"].body).toContain(expectedDash);
@@ -292,8 +293,10 @@ describe("within a test environment", () => {
 | ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
 | [June 12th, 2024](https://www.amplenote.com/notes/1) |`;
                 let expectedRowMatch = /\|.*\|.*\| 5 \| 0 \|  \|/;
+                // await plugin.insertText["Start Focus"](app);
+                await expect(plugin.insertText["Start Focus"](app)).resolves.not.toThrow();
                 // await _focus(app, plugin.options.amplefocus, new Date(), cycleCount);
-                await expect(_focus(app, plugin.options.amplefocus, new Date(), cycleCount)).resolves.not.toThrow();
+                // await expect(_focus(app, plugin.options.amplefocus, new Date(), cycleCount)).resolves.not.toThrow();
                 expect(app._noteRegistry["2"].body.split("\n").length).toBe(6);
                 expect(app._noteRegistry["2"].body).toContain(expectedDash);
                 expect(app._noteRegistry["2"].body).toMatch(expectedRowMatch);
@@ -317,11 +320,19 @@ describe("within a test environment", () => {
 
             describe("if the user abandons open session", () => {
                 beforeEach(() => {
-                    plugin.options.amplefocus.alwaysStopRunningTask = true;
+                    // let startTime = _generateStartTimeOptions()[0].value;
+                    plugin.options.amplefocus.mockPrompter = mockPrompter([
+                        "abandon",
+                        {index: 0},
+                        {index: 3},
+                        // startTime,
+                        // _generateCycleOptions(startTime, plugin.options.amplefocus)[3].value, // Should be "5"
+                    ]);
+                    // plugin.options.amplefocus.alwaysStopRunningTask = true;
                 })
 
                 afterEach(() => {
-                    plugin.options.amplefocus.alwaysStopRunningTask = false;
+                    // plugin.options.amplefocus.alwaysStopRunningTask = false;
                 })
 
                 //----------------------------------------------------------------------------------------------------------
@@ -337,8 +348,10 @@ describe("within a test environment", () => {
 | [June 12th, 2024](https://www.amplenote.com/notes/1) |`;
                     let expectedRowMatch1 = /\|.*\|.*\| 5 \| 2 \| .* \|/;
                     let expectedRowMatch2 = /\|.*\|.*\| 5 \| 0 \|  |/;
+                    await plugin.insertText["Start Focus"](app);
+                    // await expect(plugin.insertText["Start Focus"](app)).resolves.not.toThrow();
                     // await _focus(app, plugin.options.amplefocus, new Date(), cycleCount);
-                    await expect(_focus(app, plugin.options.amplefocus, new Date(), cycleCount)).resolves.not.toThrow();
+                    // await expect(_focus(app, plugin.options.amplefocus, new Date(), cycleCount)).resolves.not.toThrow();
                     expect(app._noteRegistry["2"].body).toContain(expectedDash);
                     expect(app._noteRegistry["2"].body.split("\n").length).toBe(7);
                     expect(app._noteRegistry["2"].body.split("\n")[4]).toMatch(expectedRowMatch2);
@@ -350,10 +363,18 @@ describe("within a test environment", () => {
 
             describe("if the user resumes the open session", () => {
                 beforeEach(() => {
-                    plugin.options.amplefocus.alwaysResumeOpenTask = true;
+                    // let startTime = _generateStartTimeOptions()[0].value;
+                    plugin.options.amplefocus.mockPrompter = mockPrompter([
+                        "resume",
+                        {index: 0},
+                        {index: 3},
+                        // startTime,
+                        // _generateCycleOptions(startTime, plugin.options.amplefocus)[3].value, // Should be "5"
+                    ]);
+                    // plugin.options.amplefocus.alwaysResumeOpenTask = true;
                 })
                 afterEach(() => {
-                    plugin.options.amplefocus.alwaysResumeOpenTask = false;
+                    // plugin.options.amplefocus.alwaysResumeOpenTask = false;
                 })
 
                 //----------------------------------------------------------------------------------------------------------
@@ -368,7 +389,9 @@ describe("within a test environment", () => {
 | ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
 | [June 12th, 2024](https://www.amplenote.com/notes/1) |`;
                         let expectedRowMatch2 = /\|.*\|.*\| 5 \| 0 \|  |/;
-                        await _focus(app, plugin.options.amplefocus, new Date(), cycleCount);
+                        // await plugin.insertText["Start Focus"](app);
+                        await expect(plugin.insertText["Start Focus"](app)).resolves.not.toThrow();
+                        // await _focus(app, plugin.options.amplefocus, new Date(), cycleCount);
                         // await expect(_focus(app, plugin.options.amplefocus, new Date(), cycleCount)).resolves.not.toThrow();
                         expect(app._noteRegistry["2"].body).toContain(expectedDash);
                         expect(app._noteRegistry["2"].body.split("\n")[4]).toMatch(expectedRowMatch2);
