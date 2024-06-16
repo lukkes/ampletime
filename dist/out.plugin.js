@@ -5,10 +5,9 @@
     const separatorFirst = columns.map(() => " ").join("|");
     const separatorSecond = columns.map(() => "-").join("|");
     const header = columns.join(" | ");
-    const tableHeader = `|${separatorFirst}|
+    return `|${separatorFirst}|
 |${separatorSecond}|
 | ${header} |`;
-    return tableHeader;
   }
   function _markdownTableToDict(content) {
     console.log(`_markdownTableToDict(${content})`);
@@ -22,7 +21,7 @@
       rows = [];
     else
       rows = tableMatch.slice(3).filter((row) => row.trim() !== "");
-    const table = rows.map((row) => {
+    return rows.map((row) => {
       const cells = row.split("|").slice(1, -1).map((cell) => cell.trim());
       const rowObj = {};
       headers.forEach((header, i) => {
@@ -30,7 +29,6 @@
       });
       return rowObj;
     });
-    return table;
   }
   function _dictToMarkdownTable(tableDict) {
     console.log(`_dictToMarkdownTable(${tableDict})`);
@@ -61,7 +59,7 @@ ${dataRows}`;
 
   // lib/ampletime/date-time.js
   async function _getCurrentTime() {
-    var timezoneOffset = (/* @__PURE__ */ new Date()).getTimezoneOffset() * 6e4;
+    let timezoneOffset = (/* @__PURE__ */ new Date()).getTimezoneOffset() * 6e4;
     return _getISOStringFromDate(new Date(Date.now() - timezoneOffset));
   }
   function _getISOStringFromDate(dateObject) {
@@ -91,8 +89,7 @@ ${dataRows}`;
     const seconds1 = _durationToSeconds(duration1);
     const seconds2 = _durationToSeconds(duration2);
     const totalSeconds = seconds1 + seconds2;
-    const totalDuration = _secondsToDuration(totalSeconds);
-    return totalDuration;
+    return _secondsToDuration(totalSeconds);
   }
   function _secondsToDuration(seconds) {
     const hours = Math.floor(seconds / 3600);
@@ -140,33 +137,33 @@ ${dataRows}`;
   }
 
   // lib/ampletime/dashboard.js
-  async function _ensureDashboardNote(app, options2) {
+  async function _ensureDashboardNote(app, options) {
     console.log(`_ensureDashboardNote`);
     let dash = await app.findNote(
-      { name: options2.noteTitleDashboard, tags: [options2.noteTagDashboard] }
+      { name: options.noteTitleDashboard, tags: [options.noteTagDashboard] }
     );
     console.log(dash);
     if (!dash) {
       dash = await _createDashboardNote(
         app,
-        options2.noteTitleDashboard,
-        options2.noteTagDashboard
+        options.noteTitleDashboard,
+        options.noteTagDashboard
       );
     }
     const sections = await app.getNoteSections(dash);
     console.log(sections);
     const timeEntriesSection = sections.find(
-      (section) => section.heading && section.heading.text === options2.sectionTitleDashboardEntries
+      (section) => section.heading && section.heading.text === options.sectionTitleDashboardEntries
     );
     console.log(timeEntriesSection);
     if (!timeEntriesSection) {
       await app.insertNoteContent(
         dash,
-        `## ${options2.sectionTitleDashboardEntries}
+        `## ${options.sectionTitleDashboardEntries}
 `,
         { atEnd: true }
       );
-      let tableHeader = await _createTableHeader(options2.dashboardColumns);
+      let tableHeader = await _createTableHeader(options.dashboardColumns);
       await app.insertNoteContent(dash, tableHeader, { atEnd: true });
     }
     return dash;
@@ -192,12 +189,12 @@ ${dataRows}`;
       return runningTask;
     return false;
   }
-  async function _stopTask(app, dash, options2) {
+  async function _stopTask(app, dash, options) {
     let content = await app.getNoteContent(dash);
     let tableDict = _markdownTableToDict(content);
     tableDict = _addEndTimeToDict(tableDict, await _getCurrentTime());
     let updatedTableMarkdown = _dictToMarkdownTable(tableDict);
-    const section = { heading: { text: options2.sectionTitleDashboardEntries } };
+    const section = { heading: { text: options.sectionTitleDashboardEntries } };
     await app.replaceNoteContent(dash, updatedTableMarkdown, { section });
     return true;
   }
@@ -311,7 +308,7 @@ ${dataRows}`;
     console.log(taskDurations);
     return taskDurations;
   }
-  async function _logStartTime(app, dash, newRow, options2) {
+  async function _logStartTime(app, dash, newRow, options) {
     console.log(`_logStartTime(${dash}, ${newRow}`);
     let content = await app.getNoteContent(dash);
     let tableDict = _markdownTableToDict(content);
@@ -320,7 +317,7 @@ ${dataRows}`;
     console.log(tableDict);
     let updatedTableMarkdown = _dictToMarkdownTable(tableDict);
     console.log(updatedTableMarkdown);
-    const section = { heading: { text: options2.sectionTitleDashboardEntries } };
+    const section = { heading: { text: options.sectionTitleDashboardEntries } };
     await app.replaceNoteContent(dash, updatedTableMarkdown, { section });
     return true;
   }
@@ -360,23 +357,22 @@ ${dataRows}`;
       let bDurationInSeconds = _durationToSeconds(b[1]);
       return bDurationInSeconds - aDurationInSeconds;
     });
-    let sortedTaskDurations = sortedTasks.map((task) => {
+    return sortedTasks.map((task) => {
       return {
         "Entry Name": task[0],
         "Duration": task[1]
       };
     });
-    return sortedTaskDurations;
   }
 
   // lib/amplefocus/amplefocus.js
-  async function _focus(app, options2, startTime, cycleCount) {
+  async function _focus(app, options, startTime, cycleCount) {
     console.log("Starting Amplefocus...");
-    let dash = await _ensureDashboardNote(app, options2);
+    let dash = await _ensureDashboardNote(app, options);
     let isSessionRunning = await _isTaskRunning(app, dash);
     if (isSessionRunning) {
-      if (!options2.alwaysStopRunningTask) {
-        if (!options2.alwaysResumeOpenTask) {
+      if (!options.alwaysStopRunningTask) {
+        if (!options.alwaysResumeOpenTask) {
           let result = await app.prompt(
             `The previous session was not completed. Abandon it or continue where you left off?`,
             {
@@ -393,20 +389,20 @@ ${dataRows}`;
           );
           if (!result) {
             console.log("Continuing previous uncompleted session.");
-            await _startSession(app, options2, startTime, cycleCount, isSessionRunning["Cycle progress"] + 1);
+            await _startSession(app, options, startTime, cycleCount, isSessionRunning["Cycle progress"] + 1);
             return;
           } else {
             console.log(`Stopping current task...`);
-            await _stopTask(app, dash, options2);
+            await _stopTask(app, dash, options);
           }
         } else {
           console.log("Continuing previous uncompleted session.");
-          await _startSession(app, options2, startTime, cycleCount, isSessionRunning["Cycle progress"] + 1);
+          await _startSession(app, options, startTime, cycleCount, isSessionRunning["Cycle progress"] + 1);
           return;
         }
       } else {
         console.log(`Stopping current task...`);
-        await _stopTask(app, dash, options2);
+        await _stopTask(app, dash, options);
       }
     }
     console.log(`Task running: ${isSessionRunning}`);
@@ -418,21 +414,21 @@ ${dataRows}`;
       "Cycle Progress": 0,
       "End Time": ""
     };
-    await _logStartTime(app, dash, newRow, options2);
-    const initialQuestions = await _promptInitialQuestions(app, options2);
-    await _insertLog(app, options2, startTime, cycleCount, initialQuestions);
-    await _startSession(app, options2, startTime, cycleCount);
+    await _logStartTime(app, dash, newRow, options);
+    const initialQuestions = await _promptInitialQuestions(app, options);
+    await _insertLog(app, options, startTime, cycleCount, initialQuestions);
+    await _startSession(app, options, startTime, cycleCount);
     const focusNote = await _getFocusNote(app);
     await app.navigate(
       `https://www.amplenote.com/notes/${focusNote.uuid}`
     );
   }
-  async function _promptInput(app, options2) {
+  async function _promptInput(app, options) {
     const startTime = await _promptStartTime(app);
     if (!startTime) {
       return;
     }
-    const cycleCount = await _promptCycleCount(app, options2, startTime);
+    const cycleCount = await _promptCycleCount(app, options, startTime);
     if (!cycleCount) {
       return;
     }
@@ -450,10 +446,10 @@ ${dataRows}`;
       ]
     });
   }
-  async function _promptCycleCount(app, options2, startTimeValue) {
+  async function _promptCycleCount(app, options, startTimeValue) {
     const startTime = new Date(Number(startTimeValue));
     console.log("Start time selected:", _formatAsTime(startTime));
-    const cycleOptions = _generateCycleOptions(options2, startTime);
+    const cycleOptions = _generateCycleOptions(options, startTime);
     return await app.prompt("Focus Cycle Configuration", {
       inputs: [
         {
@@ -464,9 +460,9 @@ ${dataRows}`;
       ]
     });
   }
-  async function _promptInitialQuestions(app, options2) {
+  async function _promptInitialQuestions(app, options) {
     const initialQuestions = await app.prompt("Initial Questions", {
-      inputs: options2.initialQuestions.map(function(question) {
+      inputs: options.initialQuestions.map(function(question) {
         return {
           label: question,
           type: "text"
@@ -476,7 +472,7 @@ ${dataRows}`;
     console.log(initialQuestions);
     return initialQuestions;
   }
-  async function _insertLog(app, options2, startTime, cycleCount, initialQuestions) {
+  async function _insertLog(app, options, startTime, cycleCount, initialQuestions) {
     const focusNote = await _getFocusNote(app);
     const focusNoteLink = _formatNoteLink(focusNote.name, focusNote.uuid);
     const timestamp = (/* @__PURE__ */ new Date()).toLocaleTimeString(
@@ -506,8 +502,8 @@ ${dataRows}`;
     return `[${name}](https://www.amplenote.com/notes/${uuid})`;
   }
   function _formatAsTime(date) {
-    const options2 = { hour: "2-digit", minute: "2-digit", hour12: false };
-    return date.toLocaleTimeString(void 0, options2);
+    const options = { hour: "2-digit", minute: "2-digit", hour12: false };
+    return date.toLocaleTimeString(void 0, options);
   }
   async function _getFocusNote(app) {
     const focusNotes = await app.filterNotes({ tag: "focus" });
@@ -524,7 +520,7 @@ ${dataRows}`;
   }
   function _generateStartTimeOptions() {
     console.log("Generating start time options...");
-    const options2 = [];
+    const options = [];
     const now = /* @__PURE__ */ new Date();
     const currentMinutes = now.getMinutes();
     const roundedMinutes = Math.floor(currentMinutes / 5) * 5;
@@ -534,61 +530,61 @@ ${dataRows}`;
       const time = new Date(now.getTime() + offset * 60 * 1e3);
       const label = _formatAsTime(time);
       const value = time.getTime();
-      options2.push({ label, value });
+      options.push({ label, value });
     }
     console.log("Start time options generated.");
-    return options2;
+    return options;
   }
-  function _generateCycleOptions(startTime, options2) {
+  function _generateCycleOptions(startTime, options) {
     console.log("Generating cycle options...");
     const cycleOptions = [];
     for (let cycles = 2; cycles <= 8; cycles++) {
-      const endTime = _calculateEndTime(options2, startTime, cycles);
+      const endTime = _calculateEndTime(options, startTime, cycles);
       const label = `${cycles} cycles (until ${_formatAsTime(endTime)})`;
       cycleOptions.push({ label, value: cycles });
     }
     console.log("Cycle options generated.");
     return cycleOptions;
   }
-  function _calculateEndTime(options2, startTime, cycles) {
+  function _calculateEndTime(options, startTime, cycles) {
     console.log("Calculating end time for given start time and cycles...");
-    const totalTime = (options2.workDuration + options2.breakDuration) * cycles;
+    const totalTime = (options.workDuration + options.breakDuration) * cycles;
     const endTime = new Date(startTime.getTime() + totalTime);
     console.log("Start time:", new Date(startTime));
     console.log("Cycles:", cycles);
     console.log("End time calculated:", _formatAsTime(endTime));
     return endTime;
   }
-  async function _startSession(app, options2, startTime, cycles, firstCycle) {
+  async function _startSession(app, options, startTime, cycles, firstCycle) {
     console.log("Starting focus cycle...");
     const focusNote = await _getFocusNote(app);
     if (!firstCycle)
       firstCycle = 0;
     for (let i = firstCycle; i < cycles; i++) {
-      const workEndTime = new Date(startTime.getTime() + options2.workDuration);
-      const breakEndTime = new Date(workEndTime.getTime() + options2.breakDuration);
-      await _handleWorkPhase(app, options2, focusNote, workEndTime, i);
-      await _handleBreakPhase(app, options2, focusNote, workEndTime, breakEndTime, i, cycles);
+      const workEndTime = new Date(startTime.getTime() + options.workDuration);
+      const breakEndTime = new Date(workEndTime.getTime() + options.breakDuration);
+      await _handleWorkPhase(app, options, focusNote, workEndTime, i);
+      await _handleBreakPhase(app, options, focusNote, workEndTime, breakEndTime, i, cycles);
       startTime = breakEndTime;
     }
   }
-  async function _handleWorkPhase(app, options2, focusNote, workEndTime, cycleIndex) {
+  async function _handleWorkPhase(app, options, focusNote, workEndTime, cycleIndex) {
     console.log(`Cycle ${cycleIndex + 1}: Starting work phase...`);
     const workInterval = setInterval(() => {
-      _logRemainingTime(app, options2, focusNote, workEndTime, "work", cycleIndex);
-    }, options2.updateInterval);
+      _logRemainingTime(app, options, focusNote, workEndTime, "work", cycleIndex);
+    }, options.updateInterval);
     await _sleepUntil(workEndTime);
     clearInterval(workInterval);
     app.alert(`Cycle ${cycleIndex + 1}: Work phase completed. Take a break!`);
   }
-  async function _handleBreakPhase(app, options2, focusNote, workEndTime, breakEndTime, cycleIndex, cycles) {
+  async function _handleBreakPhase(app, options, focusNote, workEndTime, breakEndTime, cycleIndex, cycles) {
     await _appendToNote(app, `- Cycle ${cycleIndex + 1} debrief:`);
     if (cycleIndex < cycles - 1) {
       await _appendToNote(app, `- Cycle ${cycleIndex + 2} plan:`);
       console.log(`Cycle ${cycleIndex + 1}: Starting break phase...`);
       const breakInterval = setInterval(() => {
         _logRemainingTime(app, focusNote, breakEndTime, "break", cycleIndex);
-      }, options2.updateInterval);
+      }, options.updateInterval);
       await _sleepUntil(breakEndTime);
       clearInterval(breakInterval);
       app.alert(`Cycle ${cycleIndex + 1}: Break phase completed. Start working!`);
@@ -599,11 +595,11 @@ ${dataRows}`;
       app.alert(`Session complete. Debrief and relax.`);
     }
   }
-  function _logRemainingTime(app, options2, focusNote, endTime, phase, cycleIndex) {
+  function _logRemainingTime(app, options, focusNote, endTime, phase, cycleIndex) {
     const remainingTime = endTime.getTime() - Date.now();
     if (remainingTime > 0) {
       const remainingMinutes = Math.ceil(remainingTime / 1e3 / 60);
-      const phaseDuration = phase === "work" ? options2.workDuration : options2.breakDuration;
+      const phaseDuration = phase === "work" ? options.workDuration : options.breakDuration;
       const progressBar = _emojiProgressBar(phaseDuration, phaseDuration - remainingTime);
       const message = `- Cycle ${cycleIndex + 1} ${phase} phase remaining time: ${remainingMinutes} minutes
 ${progressBar}
@@ -641,11 +637,11 @@ ${progressBar}
   }
 
   // lib/ampletime/reports.js
-  async function _createLegendSquare(color, options2) {
+  async function _createLegendSquare(color, options) {
     console.log(`_createLegendSquare(${color})`);
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
-    const size = options2.legendSquareSize;
+    const size = options.legendSquareSize;
     canvas.width = size;
     canvas.height = size;
     ctx.fillStyle = color;
@@ -717,7 +713,7 @@ ${progressBar}
     let blob = await response.blob();
     return await _dataURLFromBlob(blob);
   }
-  async function _generatePie(taskDurations, options2) {
+  async function _generatePie(taskDurations, options) {
     console.log(`generatePie(${taskDurations})`);
     const labels = taskDurations.map((task) => task["Entry Name"]);
     console.log(labels);
@@ -731,7 +727,7 @@ ${progressBar}
       type: "pie",
       data: {
         labels,
-        datasets: [{ data, backgroundColor: options2.colors }]
+        datasets: [{ data, backgroundColor: options.colors }]
       },
       options: {
         plugins: {
@@ -764,13 +760,13 @@ ${progressBar}
     let blob = await response.blob();
     return await _dataURLFromBlob(blob);
   }
-  async function _generateDurationsReport(app, options2, resultsHandle, taskDurations) {
+  async function _generateDurationsReport(app, options, resultsHandle, taskDurations) {
     console.log(`Creating legend squares...`);
     let legendSquares = [];
     for (let i = 0; i < taskDurations.length; i++) {
       let fileURL2 = await app.attachNoteMedia(
         resultsHandle,
-        await _createLegendSquare(options2.colors[i], options2)
+        await _createLegendSquare(options.colors[i], options)
       );
       legendSquares.push(`![](${fileURL2})`);
     }
@@ -787,14 +783,14 @@ ${progressBar}
     console.log(`Generating QuickChart...`);
     let pieDataURL;
     try {
-      pieDataURL = await _generatePie(taskDurations, options2);
+      pieDataURL = await _generatePie(taskDurations, options);
     } catch (err) {
       pieDataURL = "";
     }
     const fileURL = await app.attachNoteMedia(resultsHandle, pieDataURL);
     await app.insertNoteContent(resultsHandle, `![](${fileURL})`);
   }
-  async function _generateQuadrantReport(app, resultsHandle, taskDistribution, options2) {
+  async function _generateQuadrantReport(app, resultsHandle, taskDistribution, options) {
     let totalLength = Object.values(taskDistribution).reduce((pv, cv) => pv + cv.count, 0);
     let percentages = {
       q1: taskDistribution.q1.count / totalLength,
@@ -812,7 +808,7 @@ ${progressBar}
     console.log(`Generating QuickChart (radar)...`);
     let pieDataURL;
     try {
-      pieDataURL = await _generateRadar(taskDistribution, options2);
+      pieDataURL = await _generateRadar(taskDistribution, options);
     } catch (err) {
       console.log(err);
       pieDataURL = "";
@@ -822,15 +818,15 @@ ${progressBar}
   }
 
   // lib/ampletime/ampletime.js
-  async function _preStart(app, options2) {
+  async function _preStart(app, options) {
     console.log("_preStart()");
-    let dash = await _ensureDashboardNote(app, options2);
+    let dash = await _ensureDashboardNote(app, options);
     let isTaskRunning = await _isTaskRunning(app, dash);
     console.log(`Task running: ${isTaskRunning}`);
     if (isTaskRunning) {
       let runningTaskName = _getEntryName(_entryFromRow(isTaskRunning));
-      if (options2.alwaysStopRunningTask) {
-        await _stopTask(app, dash, options2);
+      if (options.alwaysStopRunningTask) {
+        await _stopTask(app, dash, options);
       } else {
         let result = await app.prompt(
           `${runningTaskName} is already running. Would you like to stop it first?`,
@@ -851,13 +847,13 @@ ${progressBar}
           return;
         }
         console.log(`Stopping current task...`);
-        await _stopTask(app, dash, options2);
+        await _stopTask(app, dash, options);
       }
     }
     return dash;
   }
-  async function _start(app, options2, target) {
-    let dash = await _preStart(app, options2);
+  async function _start(app, options, target) {
+    let dash = await _preStart(app, options);
     if (!dash)
       return;
     let toStart;
@@ -909,14 +905,14 @@ ${progressBar}
       "Start Time": currentTime,
       "End Time": ""
     };
-    await _logStartTime(app, dash, newRow, options2);
+    await _logStartTime(app, dash, newRow, options);
     app.openSidebarEmbed(1, _getEntryName(toStart), runningTaskDuration[0]["Duration"]);
     console.log(`${target.name} started successfully. Logged today: ${runningTaskDuration[0]["Duration"]}`);
     return true;
   }
-  async function _stop(app, options2) {
+  async function _stop(app, options) {
     console.log(`_stop(app)`);
-    let dash = await _ensureDashboardNote(app, options2);
+    let dash = await _ensureDashboardNote(app, options);
     let isTaskRunning = await _isTaskRunning(app, dash);
     if (!isTaskRunning) {
       console.log("No task is running at the moment.");
@@ -924,7 +920,7 @@ ${progressBar}
       return;
     }
     console.log(`Stopping current task...`);
-    await _stopTask(app, dash, options2);
+    await _stopTask(app, dash, options);
     let startDate = /* @__PURE__ */ new Date();
     startDate.setHours(0, 0, 0, 0);
     let endDate = new Date(startDate);
@@ -943,21 +939,21 @@ ${progressBar}
     console.log(`${_getEntryName(isTaskRunning)} stopped successfully. Logged today: ${runningTaskDuration[0]["Duration"]}`);
     return true;
   }
-  async function _generateReport(app, options2, reportType) {
+  async function _generateReport(app, options, reportType) {
     console.log(`_generateReport(), reportType: ${reportType}`);
     let startOfDay = /* @__PURE__ */ new Date();
     let endOfDay = /* @__PURE__ */ new Date();
-    let reportTitle = options2.noteTitleReportDaily;
-    let reportParentTag = options2.noteTagReports;
+    let reportTitle = options.noteTitleReportDaily;
+    let reportParentTag = options.noteTagReports;
     let reportTag = `${reportParentTag}/daily`;
-    let dash = await _ensureDashboardNote(app, options2);
+    let dash = await _ensureDashboardNote(app, options);
     if (reportType === "yesterday") {
       startOfDay.setDate(startOfDay.getDate() - 1);
     } else if (reportType === "this week") {
       let day = startOfDay.getDay();
       let difference = (day < 1 ? -6 : 1) - day;
       startOfDay.setDate(startOfDay.getDate() + difference);
-      reportTitle = options2.noteTitleReportWeekly;
+      reportTitle = options.noteTitleReportWeekly;
       reportTag = `${reportParentTag}/weekly`;
     } else if (reportType === "last week") {
       let day = startOfDay.getDay();
@@ -965,18 +961,18 @@ ${progressBar}
       startOfDay.setDate(startOfDay.getDate() + difference - 7);
       endOfDay = new Date(startOfDay.getTime());
       endOfDay.setDate(endOfDay.getDate() + 6);
-      reportTitle = options2.noteTitleReportWeekly;
+      reportTitle = options.noteTitleReportWeekly;
       reportTag = `${reportParentTag}/weekly`;
     } else if (reportType === "this month") {
       startOfDay.setDate(1);
-      reportTitle = options2.noteTitleReportMonthly;
+      reportTitle = options.noteTitleReportMonthly;
       reportTag = `${reportParentTag}/monthly`;
     } else if (reportType === "last month") {
       startOfDay.setMonth(startOfDay.getMonth() - 1);
       startOfDay.setDate(1);
       endOfDay.setDate(1);
       endOfDay.setDate(endOfDay.getDate() - 1);
-      reportTitle = options2.noteTitleReportMonthly;
+      reportTitle = options.noteTitleReportMonthly;
       reportTag = `${reportParentTag}/monthly`;
     }
     startOfDay.setHours(0, 0, 0, 0);
@@ -991,9 +987,9 @@ ${progressBar}
       await app.alert(`Nothing logged ${reportType}.`);
       return;
     }
-    await _generateDurationsReport(app, options2, resultsHandle, taskDurations);
+    await _generateDurationsReport(app, options, resultsHandle, taskDurations);
     let taskDistribution = await _getTaskDistribution(app, dash, null, startOfDay, endOfDay);
-    await _generateQuadrantReport(app, resultsHandle, taskDistribution, options2);
+    await _generateQuadrantReport(app, resultsHandle, taskDistribution, options);
     let alertAction = await app.alert(
       `Daily report generated successfully!`,
       {
@@ -1225,7 +1221,7 @@ ${progressBar}
       },
       "Start Focus": async function(app) {
         try {
-          const [startTime, cycleCount] = await _promptInput(app, options);
+          const [startTime, cycleCount] = await _promptInput(app, this.options.amplefocus);
           await _focus(app, this.options.amplefocus, startTime, cycleCount);
         } catch (err) {
           console.log(err);
