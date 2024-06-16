@@ -551,7 +551,7 @@ ${dataRows}`;
   function _calculateEndTime(options, startTime2, cycles) {
     console.log("Calculating end time for given start time and cycles...");
     const totalTime = (options.workDuration + options.breakDuration) * cycles;
-    const endTime = new Date(startTime2 + totalTime);
+    const endTime = new Date(startTime2.getTime() + totalTime);
     console.log("Start time:", new Date(startTime2));
     console.log("Cycles:", cycles);
     console.log("End time calculated:", _formatAsTime(endTime));
@@ -1097,7 +1097,7 @@ ${progressBar}
         ],
         workDuration: 30 * 60 * 1e3,
         // ms
-        breakDuration: 20 * 60 * 1e3,
+        breakDuration: 10 * 60 * 1e3,
         // ms
         updateInterval: 10 * 1e3,
         // ms
