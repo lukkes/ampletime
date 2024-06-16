@@ -449,7 +449,7 @@ ${dataRows}`;
   async function _promptCycleCount(app, options, startTimeValue) {
     const startTime = new Date(Number(startTimeValue));
     console.log("Start time selected:", _formatAsTime(startTime));
-    const cycleOptions = _generateCycleOptions(options, startTime);
+    const cycleOptions = _generateCycleOptions(startTime, options);
     return await app.prompt("Focus Cycle Configuration", {
       inputs: [
         {
@@ -470,7 +470,7 @@ ${dataRows}`;
       })
     });
     console.log(initialQuestions);
-    return initialQuestions;
+    return initialQuestions || [];
   }
   async function _insertLog(app, options, startTime, cycleCount, initialQuestions) {
     const focusNote = await _getFocusNote(app);
@@ -549,7 +549,7 @@ ${dataRows}`;
   function _calculateEndTime(options, startTime, cycles) {
     console.log("Calculating end time for given start time and cycles...");
     const totalTime = (options.workDuration + options.breakDuration) * cycles;
-    const endTime = new Date(startTime.getTime() + totalTime);
+    const endTime = new Date(startTime + totalTime);
     console.log("Start time:", new Date(startTime));
     console.log("Cycles:", cycles);
     console.log("End time calculated:", _formatAsTime(endTime));
@@ -561,7 +561,7 @@ ${dataRows}`;
     if (!firstCycle)
       firstCycle = 0;
     for (let i = firstCycle; i < cycles; i++) {
-      const workEndTime = new Date(startTime.getTime() + options.workDuration);
+      const workEndTime = new Date(startTime + options.workDuration);
       const breakEndTime = new Date(workEndTime.getTime() + options.breakDuration);
       await _handleWorkPhase(app, options, focusNote, workEndTime, i);
       await _handleBreakPhase(app, options, focusNote, workEndTime, breakEndTime, i, cycles);
