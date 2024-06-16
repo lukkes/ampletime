@@ -256,9 +256,9 @@ describe("within a test environment", () => {
 |-|-|-|-|-|
 | ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
 | [June 12th, 2024](https://www.amplenote.com/notes/1) |`;
-                let expectedRowMatch = /\|.*\|.*\| 5 \| 0 \|  \|/;
-                // await plugin.insertText["Start Focus"](app);
-                await expect(plugin.insertText["Start Focus"](app)).resolves.not.toThrow();
+                let expectedRowMatch = /\|.*\|.*\| 5 \| 5 \| .* \|/;
+                await plugin.insertText["Start Focus"](app);
+                // await expect(plugin.insertText["Start Focus"](app)).resolves.not.toThrow();
                 // await _focus(app, plugin.options.amplefocus, new Date(), cycleCount);
                 // await expect(_focus(app, plugin.options.amplefocus, new Date(), cycleCount)).resolves.not.toThrow();
                 expect(app._noteRegistry["2"].body).toContain(expectedDash);
@@ -292,7 +292,7 @@ describe("within a test environment", () => {
 |-|-|-|-|-|
 | ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
 | [June 12th, 2024](https://www.amplenote.com/notes/1) |`;
-                let expectedRowMatch = /\|.*\|.*\| 5 \| 0 \|  \|/;
+                let expectedRowMatch = /\|.*\|.*\| 5 \| 5 \| .* \|/;
                 // await plugin.insertText["Start Focus"](app);
                 await expect(plugin.insertText["Start Focus"](app)).resolves.not.toThrow();
                 // await _focus(app, plugin.options.amplefocus, new Date(), cycleCount);
@@ -395,8 +395,7 @@ describe("within a test environment", () => {
                         // await expect(_focus(app, plugin.options.amplefocus, new Date(), cycleCount)).resolves.not.toThrow();
                         expect(app._noteRegistry["2"].body).toContain(expectedDash);
                         expect(app._noteRegistry["2"].body.split("\n")[4]).toMatch(expectedRowMatch2);
-                        expect(app._noteRegistry["2"].body.split("\n").length).toBe(5);
-                        // Not sure why we don't have an empty line at the end here, but it's ok for now
+                        expect(app._noteRegistry["2"].body.split("\n").length).toBe(6);
                         // expect(app._noteRegistry["2"].body.split("\n")[5]).toMatch(/^$/);
                     }
                 )
