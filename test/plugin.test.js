@@ -215,4 +215,37 @@ describe("within a test environment", () => {
             });
         });
     })
+
+    /*
+    **************************************************************
+    * Amplefocus tests
+    **************************************************************
+    */
+
+    describe("with a newly started focus", () => {
+        describe("with no dashboard", () => {
+            const app = mockApp();
+            const plugin = mockPlugin();
+            plugin.options.amplefocus.workDuration = 0.1 * 1000;
+            plugin.options.amplefocus.breakDuration = 0.05 * 1000;
+
+            //----------------------------------------------------------------------------------------------------------
+            it("should create the dashboard and the first  entry", async () => {
+                const jot = await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
+                app.context.noteUUID = "1";
+                let cycleCount = 5;
+                let expectedDash = `## ${plugin.options.amplefocus.sectionTitleDashboardEntries}
+| | | | | |
+|-|-|-|-|-|
+| ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
+| [June 12th, 2024](https://www.amplenote.com/notes/1) |`;
+                let expectedRowMatch = /\|.*\|.*\| 5 \| 0 \|  \|/;
+                await _focus(app, plugin.options.amplefocus, new Date(), cycleCount);
+                // await expect(_focus(app, plugin.options.amplefocus, new Date(), cycleCount)).resolves.not.toThrow();
+                expect(app._noteRegistry["2"].body).toContain(expectedDash);
+                expect(app._noteRegistry["2"].body).toMatch(expectedRowMatch);
+            })
+            
+        })
+    })
 })
