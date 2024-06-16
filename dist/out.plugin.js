@@ -1,257 +1,4 @@
 (() => {
-  // lib/amplefocus.js
-  var options = {
-    workDuration: 30 * 60 * 1e3,
-    // ms
-    breakDuration: 20 * 60 * 1e3,
-    // ms
-    updateInterval: 10 * 1e3,
-    // ms
-    initialQuestions: [
-      "What am I trying to accomplish?",
-      "Why is this important and valuable?",
-      "How will I know this is complete?",
-      "Potential distractions? How am I going to deal with them?",
-      "Is this concrete/measurable or subjective/ambiguous?",
-      "Anything else noteworthy?"
-    ],
-    cycleStartQuestions: [
-      "What am I trying to accomplish this cycle?",
-      "How will I get started?",
-      "Any hazards? How will I counter them?"
-    ],
-    cycleEndQuestions: [
-      "Any distractions?",
-      "Anything noteworthy?",
-      "Things to improve next cycle?"
-    ]
-  };
-  async function _focus(app) {
-    console.log("Starting Amplefocus...");
-    const [startTime, cycleCount] = await _promptInput(app);
-    const initialQuestions = await _promptInitialQuestions(app);
-    await _insertLog(app, startTime, cycleCount, options.initialQuestions);
-    await _startFocusTimer(app, startTime, cycleCount);
-    const focusNote = await _getFocusNote(app);
-    await app.navigate(
-      `https://www.amplenote.com/notes/${focusNote.uuid}`
-    );
-  }
-  async function _promptInput(app) {
-    const startTime = await _promptStartTime(app);
-    if (!startTime) {
-      return;
-    }
-    const cycleCount = await _promptCycleCount(app, startTime);
-    if (!cycleCount) {
-      return;
-    }
-    return [new Date(Number(startTime)), cycleCount];
-  }
-  async function _promptStartTime(app) {
-    const startTimeOptions = _generateStartTimeOptions();
-    const result = await app.prompt("Focus Cycle Configuration", {
-      inputs: [
-        {
-          label: "Start Time",
-          type: "select",
-          options: startTimeOptions
-        }
-      ]
-    });
-    return result;
-  }
-  async function _promptCycleCount(app, startTimeValue) {
-    const startTime = new Date(Number(startTimeValue));
-    console.log("Start time selected:", _formatAsTime(startTime));
-    const cycleOptions = _generateCycleOptions(startTime);
-    const cycleResult = await app.prompt("Focus Cycle Configuration", {
-      inputs: [
-        {
-          label: "Number of Cycles",
-          type: "select",
-          options: cycleOptions
-        }
-      ]
-    });
-    return cycleResult;
-  }
-  async function _promptInitialQuestions(app) {
-    const initialQuestions = await app.prompt("Initial Questions", {
-      inputs: options.initialQuestions.map(function(question) {
-        return {
-          label: question,
-          type: "text"
-        };
-      })
-    });
-    console.log(options.initialQuestions);
-    return options.initialQuestions;
-  }
-  async function _insertLog(app, startTime, cycleCount, initialQuestions) {
-    const focusNote = await _getFocusNote(app);
-    const focusNoteLink = _formatNoteLink(focusNote.name, focusNote.uuid);
-    const timestamp = (/* @__PURE__ */ new Date()).toLocaleTimeString(
-      void 0,
-      { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }
-    );
-    const sessionMarkdown = [
-      `- **[${timestamp}]** ${focusNoteLink} for ${cycleCount} cycles`
-    ];
-    console.log(options.initialQuestions);
-    for (let i = 0; i < options.initialQuestions.length; i++) {
-      sessionMarkdown.push(
-        `  - **${options.initialQuestions[i]}**`
-      );
-      let answer = options.initialQuestions[i];
-      sessionMarkdown.push(`    - ${answer}`);
-    }
-    await _appendToNote(app, sessionMarkdown.join("\n"));
-  }
-  async function _appendToNote(app, contents, targetNoteUUID = null) {
-    if (!targetNoteUUID) {
-      targetNoteUUID = app.context.noteUUID;
-    }
-    await app.insertNoteContent({ uuid: targetNoteUUID }, contents, { atEnd: true });
-  }
-  function _formatNoteLink(name, uuid) {
-    return `[${name}](https://www.amplenote.com/notes/${uuid})`;
-  }
-  function _formatAsTime(date) {
-    const options2 = { hour: "2-digit", minute: "2-digit", hour12: false };
-    const timeString = date.toLocaleTimeString(void 0, options2);
-    return timeString;
-  }
-  async function _getFocusNote(app) {
-    const focusNotes = await app.filterNotes({ tag: "focus" });
-    console.log(focusNotes);
-    let focusNote;
-    if (focusNotes.length > 0) {
-      focusNote = focusNotes[0];
-    } else {
-      let focusNoteUUID = await app.createNote("Focus", ["focus"]);
-      focusNote = await app.findNote({ uuid: focusNoteUUID });
-      console.log(focusNote);
-    }
-    return focusNote;
-  }
-  function _generateStartTimeOptions() {
-    console.log("Generating start time options...");
-    const options2 = [];
-    const now = /* @__PURE__ */ new Date();
-    const currentMinutes = now.getMinutes();
-    const roundedMinutes = Math.floor(currentMinutes / 5) * 5;
-    now.setMinutes(roundedMinutes);
-    now.setSeconds(0);
-    for (let offset = -20; offset <= 20; offset += 5) {
-      const time = new Date(now.getTime() + offset * 60 * 1e3);
-      const label = _formatAsTime(time);
-      const value = time.getTime();
-      options2.push({ label, value });
-    }
-    console.log("Start time options generated.");
-    return options2;
-  }
-  function _generateCycleOptions(startTime) {
-    console.log("Generating cycle options...");
-    const options2 = [];
-    for (let cycles = 2; cycles <= 8; cycles++) {
-      const endTime = _calculateEndTime(startTime, cycles);
-      const label = `${cycles} cycles (until ${_formatAsTime(endTime)})`;
-      options2.push({ label, value: cycles });
-    }
-    console.log("Cycle options generated.");
-    return options2;
-  }
-  function _calculateEndTime(startTime, cycles) {
-    console.log("Calculating end time for given start time and cycles...");
-    const totalTime = (options.workDuration + options.breakDuration) * cycles;
-    const endTime = new Date(startTime.getTime() + totalTime);
-    console.log("Start time:", new Date(startTime));
-    console.log("Cycles:", cycles);
-    console.log("End time calculated:", _formatAsTime(endTime));
-    return endTime;
-  }
-  async function _startFocusTimer(app, startTime, cycles) {
-    console.log("Starting focus cycle...");
-    const focusNote = await _getFocusNote(app);
-    for (let i = 0; i < cycles; i++) {
-      const workEndTime = new Date(startTime.getTime() + options.workDuration);
-      const breakEndTime = new Date(workEndTime.getTime() + options.breakDuration);
-      await _handleWorkPhase(app, focusNote, workEndTime, i);
-      await _handleBreakPhase(app, focusNote, workEndTime, breakEndTime, i, cycles);
-      startTime = breakEndTime;
-    }
-  }
-  async function _handleWorkPhase(app, focusNote, workEndTime, cycleIndex) {
-    console.log(`Cycle ${cycleIndex + 1}: Starting work phase...`);
-    const workInterval = setInterval(() => {
-      _logRemainingTime(app, focusNote, workEndTime, "work", cycleIndex);
-    }, options.updateInterval);
-    await _sleepUntil(workEndTime);
-    clearInterval(workInterval);
-    app.alert(`Cycle ${cycleIndex + 1}: Work phase completed. Take a break!`);
-  }
-  async function _handleBreakPhase(app, focusNote, workEndTime, breakEndTime, cycleIndex, cycles) {
-    await _appendToNote(app, `- Cycle ${cycleIndex + 1} debrief:`);
-    if (cycleIndex < cycles - 1) {
-      await _appendToNote(app, `- Cycle ${cycleIndex + 2} plan:`);
-      console.log(`Cycle ${cycleIndex + 1}: Starting break phase...`);
-      const breakInterval = setInterval(() => {
-        _logRemainingTime(app, focusNote, breakEndTime, "break", cycleIndex);
-      }, options.updateInterval);
-      await _sleepUntil(breakEndTime);
-      clearInterval(breakInterval);
-      app.alert(`Cycle ${cycleIndex + 1}: Break phase completed. Start working!`);
-      console.log(`Cycle ${cycleIndex + 1}: Break phase completed.`);
-    } else {
-      await _appendToNote(app, `- Session debrief:`);
-      console.log(`Session complete.`);
-      app.alert(`Session complete. Debrief and relax.`);
-    }
-  }
-  function _logRemainingTime(app, focusNote, endTime, phase, cycleIndex) {
-    const remainingTime = endTime.getTime() - Date.now();
-    if (remainingTime > 0) {
-      const remainingMinutes = Math.ceil(remainingTime / 1e3 / 60);
-      const phaseDuration = phase === "work" ? options.workDuration : options.breakDuration;
-      const progressBar = _emojiProgressBar(phaseDuration, phaseDuration - remainingTime);
-      const message = `- Cycle ${cycleIndex + 1} ${phase} phase remaining time: ${remainingMinutes} minutes
-${progressBar}
-`;
-      app.replaceNoteContent(focusNote, message);
-    }
-  }
-  function _emojiProgressBar(total, done, width = 320, range = ["\u{1F311}", "\u{1F312}", "\u{1F313}", "\u{1F314}", "\u{1F315}"]) {
-    const n = Math.floor(width / 25);
-    const l = total;
-    const step = l / n;
-    const emoji = (portion) => {
-      const domain = [0, 1];
-      const quantizedPortion = (portion - domain[0]) / (domain[1] - domain[0]) * (range.length - 1);
-      const index = Math.floor(quantizedPortion);
-      return range[index];
-    };
-    const phases = Array.from(new Array(n), (d, i) => {
-      const portion = done % step / step;
-      return done / step >= i + 1 ? range[range.length - 1] : done / step < i ? range[0] : emoji(portion);
-    });
-    return phases.join(" ");
-  }
-  async function _sleepUntil(endTime) {
-    const sleepTime = endTime.getTime() - Date.now();
-    await _sleep(sleepTime);
-  }
-  function _sleep(ms) {
-    return new Promise((resolve) => {
-      if (ms > 0) {
-        setTimeout(resolve, ms);
-      } else {
-        resolve();
-      }
-    });
-  }
-
   // lib/markdown.js
   async function _createTableHeader(columns) {
     console.log(`_createTableHeader(${columns}`);
@@ -312,41 +59,7 @@ ${dataRows}`;
     return `[${target.name}](https://www.amplenote.com/notes/${target.uuid})`;
   }
 
-  // lib/data-structures.js
-  function _insertRowToDict(tableDict, target, currentTime) {
-    console.log(`_insertRowToDict(${tableDict}, ${target}, ${currentTime})`);
-    const newRow = {
-      "Project Name": target.data.projectName,
-      "Task Name": target.data.taskName,
-      "Start Time": currentTime,
-      "End Time": ""
-    };
-    tableDict.unshift(newRow);
-    return tableDict;
-  }
-  function _dataURLFromBlob(blob) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        resolve(event.target.result);
-      };
-      reader.onerror = function(event) {
-        reader.abort();
-        reject(event.target.error);
-      };
-      reader.readAsDataURL(blob);
-    });
-  }
-  function _insertColumnInMemory(memory, name, data) {
-    console.log(`_insertColumnInMemory(${memory}, ${name}, ${data})`);
-    console.log(memory);
-    return memory.map((obj, index) => ({
-      [name]: data[index],
-      ...obj
-    }));
-  }
-
-  // lib/date-time.js
+  // lib/ampletime/date-time.js
   async function _getCurrentTime() {
     var timezoneOffset = (/* @__PURE__ */ new Date()).getTimezoneOffset() * 6e4;
     return _getISOStringFromDate(new Date(Date.now() - timezoneOffset));
@@ -426,7 +139,81 @@ ${dataRows}`;
     return `${month} ${day}${daySuffix}, ${year}`;
   }
 
-  // lib/entries.js
+  // lib/ampletime/dashboard.js
+  async function _ensureDashboardNote(app, options2) {
+    console.log(`_ensureDashboardNote`);
+    let dash = await app.findNote(
+      { name: options2.noteTitleDashboard, tags: [options2.noteTagDashboard] }
+    );
+    console.log(dash);
+    if (!dash) {
+      dash = await _createDashboardNote(
+        app,
+        options2.noteTitleDashboard,
+        options2.noteTagDashboard
+      );
+    }
+    const sections = await app.getNoteSections(dash);
+    console.log(sections);
+    const timeEntriesSection = sections.find(
+      (section) => section.heading && section.heading.text === options2.sectionTitleDashboardEntries
+    );
+    console.log(timeEntriesSection);
+    if (!timeEntriesSection) {
+      await app.insertNoteContent(
+        dash,
+        `
+## ${options2.sectionTitleDashboardEntries}
+`,
+        { atEnd: true }
+      );
+      let tableHeader = await _createTableHeader(options2.dashboardColumns);
+      await app.insertNoteContent(dash, tableHeader, { atEnd: true });
+    }
+    return dash;
+  }
+  async function _createDashboardNote(app, noteTitle, noteTag) {
+    console.log(`_createDashboardNote(app, ${noteTitle}, ${noteTag}`);
+    await app.createNote(noteTitle, [noteTag]);
+    return await app.findNote({
+      name: noteTitle,
+      tags: [noteTag]
+    });
+  }
+  async function _isTaskRunning(app, dash) {
+    console.log(`_isTaskRunning(${dash})`);
+    let content = await app.getNoteContent(dash);
+    const table = _markdownTableToDict(content);
+    console.log(table);
+    if (!table)
+      return false;
+    const runningTask = table.find((row) => row["Start Time"] && !row["End Time"]);
+    console.log(runningTask);
+    if (Boolean(runningTask))
+      return runningTask;
+    return false;
+  }
+  async function _stopTask(app, dash, options2) {
+    let content = await app.getNoteContent(dash);
+    let tableDict = _markdownTableToDict(content);
+    tableDict = _addEndTimeToDict(tableDict, await _getCurrentTime());
+    let updatedTableMarkdown = _dictToMarkdownTable(tableDict);
+    const section = { heading: { text: options2.sectionTitleDashboardEntries } };
+    await app.replaceNoteContent(dash, updatedTableMarkdown, { section });
+    return true;
+  }
+  function _addEndTimeToDict(tableDict, currentTime) {
+    console.log(`_addEndTimeToDict(${tableDict}, ${currentTime})`);
+    for (let row of tableDict) {
+      if (!row["End Time"]) {
+        row["End Time"] = currentTime;
+        break;
+      }
+    }
+    return tableDict;
+  }
+
+  // lib/ampletime/entries.js
   function _getEntryName(entry) {
     if (!entry)
       return "All";
@@ -448,7 +235,35 @@ ${dataRows}`;
     return entry;
   }
 
-  // lib/tasks.js
+  // lib/data-structures.js
+  function _insertRowToDict(tableDict, newRow) {
+    console.log(`_insertRowToDict(${tableDict}, ${newRow})`);
+    tableDict.unshift(newRow);
+    return tableDict;
+  }
+  function _dataURLFromBlob(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        resolve(event.target.result);
+      };
+      reader.onerror = function(event) {
+        reader.abort();
+        reject(event.target.error);
+      };
+      reader.readAsDataURL(blob);
+    });
+  }
+  function _insertColumnInMemory(memory, name, data) {
+    console.log(`_insertColumnInMemory(${memory}, ${name}, ${data})`);
+    console.log(memory);
+    return memory.map((obj, index) => ({
+      [name]: data[index],
+      ...obj
+    }));
+  }
+
+  // lib/ampletime/tasks.js
   async function _getTaskDistribution(app, dash, target, startDate, endDate) {
     console.log(`_getTaskDistribution()`);
     let content = await app.getNoteContent(dash);
@@ -497,38 +312,16 @@ ${dataRows}`;
     console.log(taskDurations);
     return taskDurations;
   }
-  async function _isTaskRunning(app, dash) {
-    console.log(`_isTaskRunning(${dash})`);
-    let content = await app.getNoteContent(dash);
-    const table = _markdownTableToDict(content);
-    console.log(table);
-    if (!table)
-      return false;
-    const runningTask = table.find((row) => row["Project Name"] && row["Start Time"] && !row["End Time"]);
-    console.log(runningTask);
-    if (Boolean(runningTask))
-      return _entryFromRow(runningTask);
-    return false;
-  }
-  async function _logStartTime(app, dash, target, currentTime, options2) {
-    console.log(`_logStartTime(${dash}, ${target}, ${currentTime})`);
+  async function _logStartTime(app, dash, newRow, options2) {
+    console.log(`_logStartTime(${dash}, ${newRow}`);
     let content = await app.getNoteContent(dash);
     let tableDict = _markdownTableToDict(content);
     console.log(tableDict);
-    tableDict = _insertRowToDict(tableDict, target, currentTime);
+    tableDict = _insertRowToDict(tableDict, newRow);
     console.log(tableDict);
     let updatedTableMarkdown = _dictToMarkdownTable(tableDict);
     console.log(updatedTableMarkdown);
-    const section = { heading: { text: options2.sectionTitleDashboardTimeEntries } };
-    await app.replaceNoteContent(dash, updatedTableMarkdown, { section });
-    return true;
-  }
-  async function _stopTask(app, dash, options2) {
-    let content = await app.getNoteContent(dash);
-    let tableDict = _markdownTableToDict(content);
-    tableDict = _addEndTimeToDict(tableDict, await _getCurrentTime());
-    let updatedTableMarkdown = _dictToMarkdownTable(tableDict);
-    const section = { heading: { text: options2.sectionTitleDashboardTimeEntries } };
+    const section = { heading: { text: options2.sectionTitleDashboardEntries } };
     await app.replaceNoteContent(dash, updatedTableMarkdown, { section });
     return true;
   }
@@ -576,18 +369,8 @@ ${dataRows}`;
     });
     return sortedTaskDurations;
   }
-  function _addEndTimeToDict(tableDict, currentTime) {
-    console.log(`_addEndTimeToDict(${tableDict}, ${currentTime})`);
-    for (let row of tableDict) {
-      if (!row["End Time"]) {
-        row["End Time"] = currentTime;
-        break;
-      }
-    }
-    return tableDict;
-  }
 
-  // lib/reports.js
+  // lib/ampletime/reports.js
   async function _createLegendSquare(color, options2) {
     console.log(`_createLegendSquare(${color})`);
     const canvas = document.createElement("canvas");
@@ -772,14 +555,14 @@ ${dataRows}`;
     await app.insertNoteContent(resultsHandle, `![](${fileURL})`);
   }
 
-  // lib/ampletime.js
+  // lib/ampletime/ampletime.js
   async function _preStart(app, options2) {
     console.log("_preStart()");
     let dash = await _ensureDashboardNote(app, options2);
     let isTaskRunning = await _isTaskRunning(app, dash);
     console.log(`Task running: ${isTaskRunning}`);
     if (isTaskRunning) {
-      let runningTaskName = _getEntryName(isTaskRunning);
+      let runningTaskName = _getEntryName(_entryFromRow(isTaskRunning));
       if (options2.alwaysStopRunningTask) {
         await _stopTask(app, dash, options2);
       } else {
@@ -854,7 +637,13 @@ ${dataRows}`;
       app.navigate(`https://www.amplenote.com/notes/${dash.uuid}`);
     }
     let currentTime = await _getCurrentTime();
-    await _logStartTime(app, dash, toStart, currentTime, options2);
+    const newRow = {
+      "Project Name": toStart.data.projectName,
+      "Task Name": toStart.data.taskName,
+      "Start Time": currentTime,
+      "End Time": ""
+    };
+    await _logStartTime(app, dash, newRow, options2);
     app.openSidebarEmbed(1, _getEntryName(toStart), runningTaskDuration[0]["Duration"]);
     console.log(`${target.name} started successfully. Logged today: ${runningTaskDuration[0]["Duration"]}`);
     return true;
@@ -874,6 +663,7 @@ ${dataRows}`;
     startDate.setHours(0, 0, 0, 0);
     let endDate = new Date(startDate);
     endDate.setHours(23, 59, 59, 999);
+    isTaskRunning = _entryFromRow(isTaskRunning);
     let runningTaskDuration = await _getTaskDurations(app, dash, isTaskRunning, startDate, endDate);
     let alertAction = await app.alert(
       `${_getEntryName(isTaskRunning)} stopped successfully. Logged today: ${runningTaskDuration[0]["Duration"]}`,
@@ -950,51 +740,6 @@ ${dataRows}`;
     console.log(`Success!`);
     return true;
   }
-  async function _ensureDashboardNote(app, options2) {
-    console.log(`_ensureDashboardNote`);
-    let dash = await app.findNote(
-      { name: options2.noteTitleDashboard, tags: [options2.noteTagDashboard] }
-    );
-    console.log(dash);
-    if (!dash) {
-      dash = await _createDashboardNote(
-        app,
-        options2.noteTitleDashboard,
-        options2.noteTagDashboard
-      );
-    }
-    const sections = await app.getNoteSections(dash);
-    console.log(sections);
-    const timeEntriesSection = sections.find(
-      (section) => section.heading && section.heading.text === options2.sectionTitleDashboardTimeEntries
-    );
-    console.log(timeEntriesSection);
-    if (!timeEntriesSection) {
-      await app.insertNoteContent(
-        dash,
-        `
-## ${options2.sectionTitleDashboardTimeEntries}
-`,
-        { atEnd: true }
-      );
-      let tableHeader = await _createTableHeader([
-        "Project Name",
-        "Task Name",
-        "Start Time",
-        "End Time"
-      ]);
-      await app.insertNoteContent(dash, tableHeader, { atEnd: true });
-    }
-    return dash;
-  }
-  async function _createDashboardNote(app, noteTitle, noteTag) {
-    console.log(`_createDashboardNote(app, ${noteTitle}, ${noteTag}`);
-    await app.createNote(noteTitle, [noteTag]);
-    return await app.findNote({
-      name: noteTitle,
-      tags: [noteTag]
-    });
-  }
   async function _promptTarget(app) {
     return await app.prompt(
       "What are you working on?",
@@ -1015,62 +760,366 @@ ${dataRows}`;
     });
   }
 
+  // lib/amplefocus/amplefocus.js
+  async function _focus(app, options2, startTime, cycleCount) {
+    console.log("Starting Amplefocus...");
+    let dash = await _ensureDashboardNote(app, options2);
+    let isSessionRunning = await _isTaskRunning(app, dash);
+    if (isSessionRunning) {
+      let result = await app.prompt(
+        `The previous session was not completed. Abandon it or continue where you left off?`,
+        {
+          inputs: [
+            {
+              type: "radio",
+              options: [
+                { label: "Abandon previous session", value: true },
+                { label: "Pick up where you left off", value: false }
+              ]
+            }
+          ]
+        }
+      );
+      if (!result) {
+        console.log("Continuing previous uncompleted session.");
+        await _startSession(app, options2, startTime, cycleCount, isSessionRunning["Cycle progress"] + 1);
+        return;
+      } else {
+        console.log(`Stopping current task...`);
+        await _stopTask(app, dash, options2);
+      }
+    }
+    console.log(`Task running: ${isSessionRunning}`);
+    const newRow = {
+      // "Session ID": Math.max(dash.map(e => e["Session ID"])) + 1,
+      "Source Note": _makeNoteLink(await app.findNote({ uuid: app.context.noteUUID })),
+      "Start Time": /* @__PURE__ */ new Date(),
+      "Cycle Count": cycleCount,
+      "Cycle Progress": 0,
+      "End Time": ""
+    };
+    await _logStartTime(app, dash, newRow, options2);
+    const initialQuestions = await _promptInitialQuestions(app, options2);
+    await _insertLog(app, options2, startTime, cycleCount, initialQuestions);
+    await _startSession(app, options2, startTime, cycleCount);
+    const focusNote = await _getFocusNote(app);
+    await app.navigate(
+      `https://www.amplenote.com/notes/${focusNote.uuid}`
+    );
+  }
+  async function _promptInput(app, options2) {
+    const startTime = await _promptStartTime(app);
+    if (!startTime) {
+      return;
+    }
+    const cycleCount = await _promptCycleCount(app, options2, startTime);
+    if (!cycleCount) {
+      return;
+    }
+    return [new Date(Number(startTime)), cycleCount];
+  }
+  async function _promptStartTime(app) {
+    const startTimeOptions = _generateStartTimeOptions();
+    const result = await app.prompt("Focus Cycle Configuration", {
+      inputs: [
+        {
+          label: "Start Time",
+          type: "select",
+          options: startTimeOptions
+        }
+      ]
+    });
+    return result;
+  }
+  async function _promptCycleCount(app, options2, startTimeValue) {
+    const startTime = new Date(Number(startTimeValue));
+    console.log("Start time selected:", _formatAsTime(startTime));
+    const cycleOptions = _generateCycleOptions(options2, startTime);
+    const cycleResult = await app.prompt("Focus Cycle Configuration", {
+      inputs: [
+        {
+          label: "Number of Cycles",
+          type: "select",
+          options: cycleOptions
+        }
+      ]
+    });
+    return cycleResult;
+  }
+  async function _promptInitialQuestions(app, options2) {
+    const initialQuestions = await app.prompt("Initial Questions", {
+      inputs: options2.initialQuestions.map(function(question) {
+        return {
+          label: question,
+          type: "text"
+        };
+      })
+    });
+    console.log(options2.initialQuestions);
+    return options2.initialQuestions;
+  }
+  async function _insertLog(app, options2, startTime, cycleCount, initialQuestions) {
+    const focusNote = await _getFocusNote(app);
+    const focusNoteLink = _formatNoteLink(focusNote.name, focusNote.uuid);
+    const timestamp = (/* @__PURE__ */ new Date()).toLocaleTimeString(
+      void 0,
+      { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }
+    );
+    const sessionMarkdown = [
+      `- **[${timestamp}]** ${focusNoteLink} for ${cycleCount} cycles`
+    ];
+    console.log(options2.initialQuestions);
+    for (let i = 0; i < options2.initialQuestions.length; i++) {
+      sessionMarkdown.push(
+        `  - **${options2.initialQuestions[i]}**`
+      );
+      let answer = options2.initialQuestions[i];
+      sessionMarkdown.push(`    - ${answer}`);
+    }
+    await _appendToNote(app, sessionMarkdown.join("\n"));
+  }
+  async function _appendToNote(app, contents, targetNoteUUID = null) {
+    if (!targetNoteUUID) {
+      targetNoteUUID = app.context.noteUUID;
+    }
+    await app.insertNoteContent({ uuid: targetNoteUUID }, contents, { atEnd: true });
+  }
+  function _formatNoteLink(name, uuid) {
+    return `[${name}](https://www.amplenote.com/notes/${uuid})`;
+  }
+  function _formatAsTime(date) {
+    const options2 = { hour: "2-digit", minute: "2-digit", hour12: false };
+    const timeString = date.toLocaleTimeString(void 0, options2);
+    return timeString;
+  }
+  async function _getFocusNote(app) {
+    const focusNotes = await app.filterNotes({ tag: "focus" });
+    console.log(focusNotes);
+    let focusNote;
+    if (focusNotes.length > 0) {
+      focusNote = focusNotes[0];
+    } else {
+      let focusNoteUUID = await app.createNote("Focus", ["focus"]);
+      focusNote = await app.findNote({ uuid: focusNoteUUID });
+      console.log(focusNote);
+    }
+    return focusNote;
+  }
+  function _generateStartTimeOptions() {
+    console.log("Generating start time options...");
+    const options2 = [];
+    const now = /* @__PURE__ */ new Date();
+    const currentMinutes = now.getMinutes();
+    const roundedMinutes = Math.floor(currentMinutes / 5) * 5;
+    now.setMinutes(roundedMinutes);
+    now.setSeconds(0);
+    for (let offset = -20; offset <= 20; offset += 5) {
+      const time = new Date(now.getTime() + offset * 60 * 1e3);
+      const label = _formatAsTime(time);
+      const value = time.getTime();
+      options2.push({ label, value });
+    }
+    console.log("Start time options generated.");
+    return options2;
+  }
+  function _generateCycleOptions(startTime, options2) {
+    console.log("Generating cycle options...");
+    const cycleOptions = [];
+    for (let cycles = 2; cycles <= 8; cycles++) {
+      const endTime = _calculateEndTime(options2, startTime, cycles);
+      const label = `${cycles} cycles (until ${_formatAsTime(endTime)})`;
+      cycleOptions.push({ label, value: cycles });
+    }
+    console.log("Cycle options generated.");
+    return options2;
+  }
+  function _calculateEndTime(options2, startTime, cycles) {
+    console.log("Calculating end time for given start time and cycles...");
+    const totalTime = (options2.workDuration + options2.breakDuration) * cycles;
+    const endTime = new Date(startTime.getTime() + totalTime);
+    console.log("Start time:", new Date(startTime));
+    console.log("Cycles:", cycles);
+    console.log("End time calculated:", _formatAsTime(endTime));
+    return endTime;
+  }
+  async function _startSession(app, options2, startTime, cycles, firstCycle) {
+    console.log("Starting focus cycle...");
+    const focusNote = await _getFocusNote(app);
+    if (!firstCycle)
+      firstCycle = 0;
+    for (let i = firstCycle; i < cycles; i++) {
+      const workEndTime = new Date(startTime.getTime() + options2.workDuration);
+      const breakEndTime = new Date(workEndTime.getTime() + options2.breakDuration);
+      await _handleWorkPhase(app, options2, focusNote, workEndTime, i);
+      await _handleBreakPhase(app, options2, focusNote, workEndTime, breakEndTime, i, cycles);
+      startTime = breakEndTime;
+    }
+  }
+  async function _handleWorkPhase(app, options2, focusNote, workEndTime, cycleIndex) {
+    console.log(`Cycle ${cycleIndex + 1}: Starting work phase...`);
+    const workInterval = setInterval(() => {
+      _logRemainingTime(app, options2, focusNote, workEndTime, "work", cycleIndex);
+    }, options2.updateInterval);
+    await _sleepUntil(workEndTime);
+    clearInterval(workInterval);
+    app.alert(`Cycle ${cycleIndex + 1}: Work phase completed. Take a break!`);
+  }
+  async function _handleBreakPhase(app, options2, focusNote, workEndTime, breakEndTime, cycleIndex, cycles) {
+    await _appendToNote(app, `- Cycle ${cycleIndex + 1} debrief:`);
+    if (cycleIndex < cycles - 1) {
+      await _appendToNote(app, `- Cycle ${cycleIndex + 2} plan:`);
+      console.log(`Cycle ${cycleIndex + 1}: Starting break phase...`);
+      const breakInterval = setInterval(() => {
+        _logRemainingTime(app, focusNote, breakEndTime, "break", cycleIndex);
+      }, options2.updateInterval);
+      await _sleepUntil(breakEndTime);
+      clearInterval(breakInterval);
+      app.alert(`Cycle ${cycleIndex + 1}: Break phase completed. Start working!`);
+      console.log(`Cycle ${cycleIndex + 1}: Break phase completed.`);
+    } else {
+      await _appendToNote(app, `- Session debrief:`);
+      console.log(`Session complete.`);
+      app.alert(`Session complete. Debrief and relax.`);
+    }
+  }
+  function _logRemainingTime(app, options2, focusNote, endTime, phase, cycleIndex) {
+    const remainingTime = endTime.getTime() - Date.now();
+    if (remainingTime > 0) {
+      const remainingMinutes = Math.ceil(remainingTime / 1e3 / 60);
+      const phaseDuration = phase === "work" ? options2.workDuration : options2.breakDuration;
+      const progressBar = _emojiProgressBar(phaseDuration, phaseDuration - remainingTime);
+      const message = `- Cycle ${cycleIndex + 1} ${phase} phase remaining time: ${remainingMinutes} minutes
+${progressBar}
+`;
+      app.replaceNoteContent(focusNote, message);
+    }
+  }
+  function _emojiProgressBar(total, done, width = 320, range = ["\u{1F311}", "\u{1F312}", "\u{1F313}", "\u{1F314}", "\u{1F315}"]) {
+    const n = Math.floor(width / 25);
+    const l = total;
+    const step = l / n;
+    const emoji = (portion) => {
+      const domain = [0, 1];
+      const quantizedPortion = (portion - domain[0]) / (domain[1] - domain[0]) * (range.length - 1);
+      const index = Math.floor(quantizedPortion);
+      return range[index];
+    };
+    const phases = Array.from(new Array(n), (d, i) => {
+      const portion = done % step / step;
+      return done / step >= i + 1 ? range[range.length - 1] : done / step < i ? range[0] : emoji(portion);
+    });
+    return phases.join(" ");
+  }
+  async function _sleepUntil(endTime) {
+    const sleepTime = endTime.getTime() - Date.now();
+    await _sleep(sleepTime);
+  }
+  function _sleep(ms) {
+    return new Promise((resolve) => {
+      if (ms > 0) {
+        setTimeout(resolve, ms);
+      } else {
+        resolve();
+      }
+    });
+  }
+
   // lib/plugin.js
   var plugin = {
     options: {
-      noteTitleDashboard: "Time Tracker Dashboard",
-      noteTagDashboard: "tracking",
-      noteTagReports: "tracking/reports",
-      sectionTitleDashboardTimeEntries: "Time entries",
-      noteTitleReportDaily: "Ampletime Daily: Tracked",
-      noteTitleReportWeekly: "Ampletime Weekly: Tracked",
-      noteTitleReportMonthly: "Ampletime Monthly: Tracked",
-      colors: [
-        // Colors to use on the chart
-        "#1ABC9C",
-        // Turquoise (Green)
-        "#3498DB",
-        // Peter River (Blue)
-        "#F1C40F",
-        // Sun Flower (Yellow)
-        "#9B59B6",
-        // Amethyst (Purple)
-        "#E74C3C",
-        // Alizarin (Red)
-        "#95A5A6",
-        // Concrete (Grey)
-        "#2ECC71",
-        // Emerald (Green)
-        "#2980B9",
-        // Belize Hole (Blue)
-        "#F39C12",
-        // Orange (Orange)
-        "#8E44AD",
-        // Wisteria (Purple)
-        "#C0392B",
-        // Pomegranate (Red)
-        "#BDC3C7",
-        // Silver (Grey)
-        "#16A085",
-        // Green Sea (Green)
-        "#34495E",
-        // Wet Asphalt (Blue)
-        "#D35400",
-        // Pumpkin (Orange)
-        "#7F8C8D",
-        // Asbestos (Grey)
-        "#27AE60",
-        // Nephritis (Green)
-        "#2C3E50",
-        // Midnight Blue (Blue)
-        "#E67E22",
-        // Carrot (Orange)
-        "#ECF0F1"
-        // Clouds (Grey)
-      ],
-      legendSquareSize: 45,
-      // Size in pixels for the colored square in the reports table
-      alwaysStopRunningTask: false
+      ampletime: {
+        noteTitleDashboard: "Time Tracker Dashboard",
+        noteTagDashboard: "amplework/tracking",
+        noteTagReports: "amplework/tracking/reports",
+        sectionTitleDashboardEntries: "Time entries",
+        dashboardColumns: ["Project Name", "Task Name", "Start Time", "End Time"],
+        noteTitleReportDaily: "Ampletime Daily: Tracked",
+        noteTitleReportWeekly: "Ampletime Weekly: Tracked",
+        noteTitleReportMonthly: "Ampletime Monthly: Tracked",
+        colors: [
+          // Colors to use on the chart
+          "#1ABC9C",
+          // Turquoise (Green)
+          "#3498DB",
+          // Peter River (Blue)
+          "#F1C40F",
+          // Sun Flower (Yellow)
+          "#9B59B6",
+          // Amethyst (Purple)
+          "#E74C3C",
+          // Alizarin (Red)
+          "#95A5A6",
+          // Concrete (Grey)
+          "#2ECC71",
+          // Emerald (Green)
+          "#2980B9",
+          // Belize Hole (Blue)
+          "#F39C12",
+          // Orange (Orange)
+          "#8E44AD",
+          // Wisteria (Purple)
+          "#C0392B",
+          // Pomegranate (Red)
+          "#BDC3C7",
+          // Silver (Grey)
+          "#16A085",
+          // Green Sea (Green)
+          "#34495E",
+          // Wet Asphalt (Blue)
+          "#D35400",
+          // Pumpkin (Orange)
+          "#7F8C8D",
+          // Asbestos (Grey)
+          "#27AE60",
+          // Nephritis (Green)
+          "#2C3E50",
+          // Midnight Blue (Blue)
+          "#E67E22",
+          // Carrot (Orange)
+          "#ECF0F1"
+          // Clouds (Grey)
+        ],
+        legendSquareSize: 45,
+        // Size in pixels for the colored square in the reports table
+        alwaysStopRunningTask: false
+      },
+      amplefocus: {
+        noteTitleDashboard: "Focus Dashboard",
+        noteTagDashboard: "amplework/focus",
+        sectionTitleDashboardEntries: "Sessions",
+        dashboardColumns: [
+          "Source Note",
+          "Start Time",
+          "Cycle Count",
+          "Cycle Progress",
+          // How many cycles were completed fully
+          "End Time"
+        ],
+        workDuration: 30 * 60 * 1e3,
+        // ms
+        breakDuration: 20 * 60 * 1e3,
+        // ms
+        updateInterval: 10 * 1e3,
+        // ms
+        initialQuestions: [
+          "What am I trying to accomplish?",
+          "Why is this important and valuable?",
+          "How will I know this is complete?",
+          "Potential distractions? How am I going to deal with them?",
+          "Is this concrete/measurable or subjective/ambiguous?",
+          "Anything else noteworthy?"
+        ],
+        cycleStartQuestions: [
+          "What am I trying to accomplish this cycle?",
+          "How will I get started?",
+          "Any hazards? How will I counter them?"
+        ],
+        cycleEndQuestions: [
+          "Any distractions?",
+          "Anything noteworthy?",
+          "Things to improve next cycle?"
+        ]
+      }
     },
     //===================================================================================
     // ===== APP OPTIONS ====
@@ -1079,7 +1128,7 @@ ${dataRows}`;
       "Start...": async function(app) {
         let target = await _promptTarget(app);
         try {
-          await _start(app, this.options, target);
+          await _start(app, this.options.ampletime, target);
         } catch (err) {
           console.log(err);
           await app.alert(err);
@@ -1096,7 +1145,7 @@ ${dataRows}`;
       "Tracked Today": async function(app) {
         try {
           await _loadScript("https://cdn.jsdelivr.net/npm/quickchart-js@3.1.2/build/quickchart.min.js");
-          await _generateReport(app, this.options, "today");
+          await _generateReport(app, this.options.ampletime, "today");
         } catch (err) {
           console.log(err);
         }
@@ -1104,7 +1153,7 @@ ${dataRows}`;
       "Tracked Yesterday": async function(app) {
         try {
           await _loadScript("https://cdn.jsdelivr.net/npm/quickchart-js@3.1.2/build/quickchart.min.js");
-          await _generateReport(app, this.options, "yesterday");
+          await _generateReport(app, this.options.ampletime, "yesterday");
         } catch (err) {
           console.log(err);
         }
@@ -1112,7 +1161,7 @@ ${dataRows}`;
       "Tracked This Week": async function(app) {
         try {
           await _loadScript("https://cdn.jsdelivr.net/npm/quickchart-js@3.1.2/build/quickchart.min.js");
-          await _generateReport(app, this.options, "this week");
+          await _generateReport(app, this.options.ampletime, "this week");
         } catch (err) {
           console.log(err);
         }
@@ -1120,7 +1169,7 @@ ${dataRows}`;
       "Tracked Last Week": async function(app) {
         try {
           await _loadScript("https://cdn.jsdelivr.net/npm/quickchart-js@3.1.2/build/quickchart.min.js");
-          await _generateReport(app, this.options, "last week");
+          await _generateReport(app, this.options.ampletime, "last week");
         } catch (err) {
           console.log(err);
         }
@@ -1128,7 +1177,7 @@ ${dataRows}`;
       "Tracked This Month": async function(app) {
         try {
           await _loadScript("https://cdn.jsdelivr.net/npm/quickchart-js@3.1.2/build/quickchart.min.js");
-          await _generateReport(app, this.options, "this month");
+          await _generateReport(app, this.options.ampletime, "this month");
         } catch (err) {
           console.log(err);
         }
@@ -1136,7 +1185,7 @@ ${dataRows}`;
       "Tracked Last Month": async function(app) {
         try {
           await _loadScript("https://cdn.jsdelivr.net/npm/quickchart-js@3.1.2/build/quickchart.min.js");
-          await _generateReport(app, this.options, "last month");
+          await _generateReport(app, this.options.ampletime, "last month");
         } catch (err) {
           console.log(err);
         }
@@ -1159,7 +1208,7 @@ ${dataRows}`;
               await new Promise((r) => setTimeout(r, 500));
             }
             console.log(target.content);
-            await _start(app, this.options, target);
+            await _start(app, this.options.ampletime, target);
           } catch (err) {
             console.log(err);
             await app.alert(err);
@@ -1172,7 +1221,8 @@ ${dataRows}`;
       },
       "Start Focus": async function(app) {
         try {
-          await _focus(app);
+          const [startTime, cycleCount] = await _promptInput(app, options);
+          await _focus(app, this.options.amplefocus, startTime, cycleCount);
         } catch (err) {
           console.log(err);
           app.alert(err);
