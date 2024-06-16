@@ -240,12 +240,118 @@ describe("within a test environment", () => {
 | ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
 | [June 12th, 2024](https://www.amplenote.com/notes/1) |`;
                 let expectedRowMatch = /\|.*\|.*\| 5 \| 0 \|  \|/;
-                await _focus(app, plugin.options.amplefocus, new Date(), cycleCount);
-                // await expect(_focus(app, plugin.options.amplefocus, new Date(), cycleCount)).resolves.not.toThrow();
+                // await _focus(app, plugin.options.amplefocus, new Date(), cycleCount);
+                await expect(_focus(app, plugin.options.amplefocus, new Date(), cycleCount)).resolves.not.toThrow();
                 expect(app._noteRegistry["2"].body).toContain(expectedDash);
                 expect(app._noteRegistry["2"].body).toMatch(expectedRowMatch);
             })
-            
+        })
+
+        describe("with an empty dashboard", () => {
+            const app = mockApp();
+            const plugin = mockPlugin();
+            plugin.options.amplefocus.workDuration = 0.1 * 1000;
+            plugin.options.amplefocus.breakDuration = 0.05 * 1000;
+
+            //----------------------------------------------------------------------------------------------------------
+            it("should create a new entry in the dashboard", async () => {
+                const jot = await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
+                app.context.noteUUID = "1";
+                let cycleCount = 5;
+                await app.createNote(plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard], "", "2");
+                let expectedDash = `## ${plugin.options.amplefocus.sectionTitleDashboardEntries}
+| | | | | |
+|-|-|-|-|-|
+| ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
+| [June 12th, 2024](https://www.amplenote.com/notes/1) |`;
+                let expectedRowMatch = /\|.*\|.*\| 5 \| 0 \|  \|/;
+                // await _focus(app, plugin.options.amplefocus, new Date(), cycleCount);
+                await expect(_focus(app, plugin.options.amplefocus, new Date(), cycleCount)).resolves.not.toThrow();
+                expect(app._noteRegistry["2"].body.split("\n").length).toBe(6);
+                expect(app._noteRegistry["2"].body).toContain(expectedDash);
+                expect(app._noteRegistry["2"].body).toMatch(expectedRowMatch);
+                expect(app._noteRegistry["2"].body.split("\n")[5]).toMatch(/^$/);
+            })
+        })
+
+        describe("with a running session", () => {
+            let app, plugin, dashContents;
+            beforeEach(() => {
+                app = mockApp();
+                plugin = mockPlugin();
+                plugin.options.amplefocus.workDuration = 0.1 * 1000;
+                plugin.options.amplefocus.breakDuration = 0.05 * 1000;
+                dashContents = `## ${plugin.options.amplefocus.sectionTitleDashboardEntries}
+| | | | | |
+|-|-|-|-|-|
+| ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
+| [June 12th, 2024](https://www.amplenote.com/notes/1) | some date | 5 | 2 |  |`;
+            })
+
+            describe("if the user abandons open session", () => {
+                beforeEach(() => {
+                    plugin.options.amplefocus.alwaysStopRunningTask = true;
+                })
+
+                afterEach(() => {
+                    plugin.options.amplefocus.alwaysStopRunningTask = false;
+                })
+
+                //----------------------------------------------------------------------------------------------------------
+                it("should stop the open session and start the new one", async () =>  {
+                    const jot = await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
+                    app.context.noteUUID = "1";
+                    let cycleCount = 5;
+                    await app.createNote(plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard], dashContents, "2");
+                    let expectedDash = `## ${plugin.options.amplefocus.sectionTitleDashboardEntries}
+| | | | | |
+|-|-|-|-|-|
+| ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
+| [June 12th, 2024](https://www.amplenote.com/notes/1) |`;
+                    let expectedRowMatch1 = /\|.*\|.*\| 5 \| 2 \| .* \|/;
+                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 0 \|  |/;
+                    // await _focus(app, plugin.options.amplefocus, new Date(), cycleCount);
+                    await expect(_focus(app, plugin.options.amplefocus, new Date(), cycleCount)).resolves.not.toThrow();
+                    expect(app._noteRegistry["2"].body).toContain(expectedDash);
+                    expect(app._noteRegistry["2"].body.split("\n").length).toBe(7);
+                    expect(app._noteRegistry["2"].body.split("\n")[4]).toMatch(expectedRowMatch2);
+                    expect(app._noteRegistry["2"].body.split("\n")[5]).toMatch(expectedRowMatch1);
+                    expect(app._noteRegistry["2"].body.split("\n")[6]).toMatch(/^$/);
+                    }
+                )
+            })
+
+            describe("if the user resumes the open session", () => {
+                beforeEach(() => {
+                    plugin.options.amplefocus.alwaysResumeOpenTask = true;
+                })
+                afterEach(() => {
+                    plugin.options.amplefocus.alwaysResumeOpenTask = false;
+                })
+
+                //----------------------------------------------------------------------------------------------------------
+                it("should resume the open session and leave the table intact", async () =>  {
+                        const jot = await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
+                        app.context.noteUUID = "1";
+                        let cycleCount = 5;
+                        await app.createNote(plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard], dashContents, "2");
+                        let expectedDash = `## ${plugin.options.amplefocus.sectionTitleDashboardEntries}
+| | | | | |
+|-|-|-|-|-|
+| ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
+| [June 12th, 2024](https://www.amplenote.com/notes/1) |`;
+                        let expectedRowMatch2 = /\|.*\|.*\| 5 \| 0 \|  |/;
+                        await _focus(app, plugin.options.amplefocus, new Date(), cycleCount);
+                        // await expect(_focus(app, plugin.options.amplefocus, new Date(), cycleCount)).resolves.not.toThrow();
+                        expect(app._noteRegistry["2"].body).toContain(expectedDash);
+                        expect(app._noteRegistry["2"].body.split("\n")[4]).toMatch(expectedRowMatch2);
+                        expect(app._noteRegistry["2"].body.split("\n").length).toBe(5);
+                        // Not sure why we don't have an empty line at the end here, but it's ok for now
+                        // expect(app._noteRegistry["2"].body.split("\n")[5]).toMatch(/^$/);
+                    }
+                )
+            })
         })
     })
+
 })
