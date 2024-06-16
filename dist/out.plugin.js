@@ -563,7 +563,7 @@ ${dataRows}`;
     if (!firstCycle)
       firstCycle = 0;
     for (let i = firstCycle; i < cycles; i++) {
-      const workEndTime = new Date(startTime2 + options.workDuration);
+      const workEndTime = new Date(startTime2.getTime() + options.workDuration);
       const breakEndTime = new Date(workEndTime.getTime() + options.breakDuration);
       await _handleWorkPhase(app, options, focusNote, workEndTime, i);
       await _handleBreakPhase(app, options, focusNote, workEndTime, breakEndTime, i, cycles);
@@ -625,6 +625,7 @@ ${progressBar}
     return phases.join(" ");
   }
   async function _sleepUntil(endTime) {
+    console.log(`Sleeping until ${endTime}...`);
     const sleepTime = endTime.getTime() - Date.now();
     await _sleep(sleepTime);
   }
