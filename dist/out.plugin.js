@@ -162,8 +162,7 @@ ${dataRows}`;
     if (!timeEntriesSection) {
       await app.insertNoteContent(
         dash,
-        `
-## ${options2.sectionTitleDashboardEntries}
+        `## ${options2.sectionTitleDashboardEntries}
 `,
         { atEnd: true }
       );
@@ -766,24 +765,35 @@ ${dataRows}`;
     let dash = await _ensureDashboardNote(app, options2);
     let isSessionRunning = await _isTaskRunning(app, dash);
     if (isSessionRunning) {
-      let result = await app.prompt(
-        `The previous session was not completed. Abandon it or continue where you left off?`,
-        {
-          inputs: [
+      if (!options2.alwaysStopRunningTask) {
+        if (!options2.alwaysResumeOpenTask) {
+          let result = await app.prompt(
+            `The previous session was not completed. Abandon it or continue where you left off?`,
             {
-              type: "radio",
-              options: [
-                { label: "Abandon previous session", value: true },
-                { label: "Pick up where you left off", value: false }
+              inputs: [
+                {
+                  type: "radio",
+                  options: [
+                    { label: "Abandon previous session", value: true },
+                    { label: "Pick up where you left off", value: false }
+                  ]
+                }
               ]
             }
-          ]
+          );
+          if (!result) {
+            console.log("Continuing previous uncompleted session.");
+            await _startSession(app, options2, startTime, cycleCount, isSessionRunning["Cycle progress"] + 1);
+            return;
+          } else {
+            console.log(`Stopping current task...`);
+            await _stopTask(app, dash, options2);
+          }
+        } else {
+          console.log("Continuing previous uncompleted session.");
+          await _startSession(app, options2, startTime, cycleCount, isSessionRunning["Cycle progress"] + 1);
+          return;
         }
-      );
-      if (!result) {
-        console.log("Continuing previous uncompleted session.");
-        await _startSession(app, options2, startTime, cycleCount, isSessionRunning["Cycle progress"] + 1);
-        return;
       } else {
         console.log(`Stopping current task...`);
         await _stopTask(app, dash, options2);
@@ -1101,6 +1111,8 @@ ${progressBar}
         // ms
         updateInterval: 10 * 1e3,
         // ms
+        alwaysStopRunningTask: false,
+        alwaysResumeOpenTask: false,
         initialQuestions: [
           "What am I trying to accomplish?",
           "Why is this important and valuable?",
