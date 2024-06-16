@@ -212,28 +212,6 @@ ${dataRows}`;
     return tableDict;
   }
 
-  // lib/ampletime/entries.js
-  function _getEntryName(entry) {
-    if (!entry)
-      return "All";
-    if (entry.data.taskName) {
-      return `${_getLinkText(entry.data.projectName)}: ${entry.data.taskName}`;
-    } else {
-      return _getLinkText(entry.data.projectName);
-    }
-  }
-  function _entryFromRow(row) {
-    let entry = {};
-    entry.data = {};
-    entry.data.taskName = row["Task Name"];
-    entry.data.projectName = row["Project Name"];
-    if (entry.data.taskName)
-      entry.type = "task";
-    else
-      entry.type = "project";
-    return entry;
-  }
-
   // lib/data-structures.js
   function _insertRowToDict(tableDict, newRow) {
     console.log(`_insertRowToDict(${tableDict}, ${newRow})`);
@@ -260,6 +238,28 @@ ${dataRows}`;
       [name]: data[index],
       ...obj
     }));
+  }
+
+  // lib/ampletime/entries.js
+  function _getEntryName(entry) {
+    if (!entry)
+      return "All";
+    if (entry.data.taskName) {
+      return `${_getLinkText(entry.data.projectName)}: ${entry.data.taskName}`;
+    } else {
+      return _getLinkText(entry.data.projectName);
+    }
+  }
+  function _entryFromRow(row) {
+    let entry = {};
+    entry.data = {};
+    entry.data.taskName = row["Task Name"];
+    entry.data.projectName = row["Project Name"];
+    if (entry.data.taskName)
+      entry.type = "task";
+    else
+      entry.type = "project";
+    return entry;
   }
 
   // lib/ampletime/tasks.js
@@ -369,6 +369,277 @@ ${dataRows}`;
     return sortedTaskDurations;
   }
 
+  // lib/amplefocus/amplefocus.js
+  async function _focus(app, options2, startTime, cycleCount) {
+    console.log("Starting Amplefocus...");
+    let dash = await _ensureDashboardNote(app, options2);
+    let isSessionRunning = await _isTaskRunning(app, dash);
+    if (isSessionRunning) {
+      if (!options2.alwaysStopRunningTask) {
+        if (!options2.alwaysResumeOpenTask) {
+          let result = await app.prompt(
+            `The previous session was not completed. Abandon it or continue where you left off?`,
+            {
+              inputs: [
+                {
+                  type: "radio",
+                  options: [
+                    { label: "Abandon previous session", value: true },
+                    { label: "Pick up where you left off", value: false }
+                  ]
+                }
+              ]
+            }
+          );
+          if (!result) {
+            console.log("Continuing previous uncompleted session.");
+            await _startSession(app, options2, startTime, cycleCount, isSessionRunning["Cycle progress"] + 1);
+            return;
+          } else {
+            console.log(`Stopping current task...`);
+            await _stopTask(app, dash, options2);
+          }
+        } else {
+          console.log("Continuing previous uncompleted session.");
+          await _startSession(app, options2, startTime, cycleCount, isSessionRunning["Cycle progress"] + 1);
+          return;
+        }
+      } else {
+        console.log(`Stopping current task...`);
+        await _stopTask(app, dash, options2);
+      }
+    }
+    console.log(`Task running: ${isSessionRunning}`);
+    const newRow = {
+      // "Session ID": Math.max(dash.map(e => e["Session ID"])) + 1,
+      "Source Note": _makeNoteLink(await app.findNote({ uuid: app.context.noteUUID })),
+      "Start Time": /* @__PURE__ */ new Date(),
+      "Cycle Count": cycleCount,
+      "Cycle Progress": 0,
+      "End Time": ""
+    };
+    await _logStartTime(app, dash, newRow, options2);
+    const initialQuestions = await _promptInitialQuestions(app, options2);
+    await _insertLog(app, options2, startTime, cycleCount, initialQuestions);
+    await _startSession(app, options2, startTime, cycleCount);
+    const focusNote = await _getFocusNote(app);
+    await app.navigate(
+      `https://www.amplenote.com/notes/${focusNote.uuid}`
+    );
+  }
+  async function _promptInput(app, options2) {
+    const startTime = await _promptStartTime(app);
+    if (!startTime) {
+      return;
+    }
+    const cycleCount = await _promptCycleCount(app, options2, startTime);
+    if (!cycleCount) {
+      return;
+    }
+    return [new Date(Number(startTime)), cycleCount];
+  }
+  async function _promptStartTime(app) {
+    const startTimeOptions = _generateStartTimeOptions();
+    return await app.prompt("Focus Cycle Configuration", {
+      inputs: [
+        {
+          label: "Start Time",
+          type: "select",
+          options: startTimeOptions
+        }
+      ]
+    });
+  }
+  async function _promptCycleCount(app, options2, startTimeValue) {
+    const startTime = new Date(Number(startTimeValue));
+    console.log("Start time selected:", _formatAsTime(startTime));
+    const cycleOptions = _generateCycleOptions(options2, startTime);
+    return await app.prompt("Focus Cycle Configuration", {
+      inputs: [
+        {
+          label: "Number of Cycles",
+          type: "select",
+          options: cycleOptions
+        }
+      ]
+    });
+  }
+  async function _promptInitialQuestions(app, options2) {
+    const initialQuestions = await app.prompt("Initial Questions", {
+      inputs: options2.initialQuestions.map(function(question) {
+        return {
+          label: question,
+          type: "text"
+        };
+      })
+    });
+    console.log(initialQuestions);
+    return initialQuestions;
+  }
+  async function _insertLog(app, options2, startTime, cycleCount, initialQuestions) {
+    const focusNote = await _getFocusNote(app);
+    const focusNoteLink = _formatNoteLink(focusNote.name, focusNote.uuid);
+    const timestamp = (/* @__PURE__ */ new Date()).toLocaleTimeString(
+      void 0,
+      { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }
+    );
+    const sessionMarkdown = [
+      `- **[${timestamp}]** ${focusNoteLink} for ${cycleCount} cycles`
+    ];
+    console.log(initialQuestions);
+    for (let i = 0; i < initialQuestions.length; i++) {
+      sessionMarkdown.push(
+        `  - **${initialQuestions[i]}**`
+      );
+      let answer = initialQuestions[i];
+      sessionMarkdown.push(`    - ${answer}`);
+    }
+    await _appendToNote(app, sessionMarkdown.join("\n"));
+  }
+  async function _appendToNote(app, contents, targetNoteUUID = null) {
+    if (!targetNoteUUID) {
+      targetNoteUUID = app.context.noteUUID;
+    }
+    await app.insertNoteContent({ uuid: targetNoteUUID }, contents, { atEnd: true });
+  }
+  function _formatNoteLink(name, uuid) {
+    return `[${name}](https://www.amplenote.com/notes/${uuid})`;
+  }
+  function _formatAsTime(date) {
+    const options2 = { hour: "2-digit", minute: "2-digit", hour12: false };
+    return date.toLocaleTimeString(void 0, options2);
+  }
+  async function _getFocusNote(app) {
+    const focusNotes = await app.filterNotes({ tag: "focus" });
+    console.log(focusNotes);
+    let focusNote;
+    if (focusNotes.length > 0) {
+      focusNote = focusNotes[0];
+    } else {
+      let focusNoteUUID = await app.createNote("Focus", ["focus"]);
+      focusNote = await app.findNote({ uuid: focusNoteUUID });
+      console.log(focusNote);
+    }
+    return focusNote;
+  }
+  function _generateStartTimeOptions() {
+    console.log("Generating start time options...");
+    const options2 = [];
+    const now = /* @__PURE__ */ new Date();
+    const currentMinutes = now.getMinutes();
+    const roundedMinutes = Math.floor(currentMinutes / 5) * 5;
+    now.setMinutes(roundedMinutes);
+    now.setSeconds(0);
+    for (let offset = -20; offset <= 20; offset += 5) {
+      const time = new Date(now.getTime() + offset * 60 * 1e3);
+      const label = _formatAsTime(time);
+      const value = time.getTime();
+      options2.push({ label, value });
+    }
+    console.log("Start time options generated.");
+    return options2;
+  }
+  function _generateCycleOptions(startTime, options2) {
+    console.log("Generating cycle options...");
+    const cycleOptions = [];
+    for (let cycles = 2; cycles <= 8; cycles++) {
+      const endTime = _calculateEndTime(options2, startTime, cycles);
+      const label = `${cycles} cycles (until ${_formatAsTime(endTime)})`;
+      cycleOptions.push({ label, value: cycles });
+    }
+    console.log("Cycle options generated.");
+    return cycleOptions;
+  }
+  function _calculateEndTime(options2, startTime, cycles) {
+    console.log("Calculating end time for given start time and cycles...");
+    const totalTime = (options2.workDuration + options2.breakDuration) * cycles;
+    const endTime = new Date(startTime.getTime() + totalTime);
+    console.log("Start time:", new Date(startTime));
+    console.log("Cycles:", cycles);
+    console.log("End time calculated:", _formatAsTime(endTime));
+    return endTime;
+  }
+  async function _startSession(app, options2, startTime, cycles, firstCycle) {
+    console.log("Starting focus cycle...");
+    const focusNote = await _getFocusNote(app);
+    if (!firstCycle)
+      firstCycle = 0;
+    for (let i = firstCycle; i < cycles; i++) {
+      const workEndTime = new Date(startTime.getTime() + options2.workDuration);
+      const breakEndTime = new Date(workEndTime.getTime() + options2.breakDuration);
+      await _handleWorkPhase(app, options2, focusNote, workEndTime, i);
+      await _handleBreakPhase(app, options2, focusNote, workEndTime, breakEndTime, i, cycles);
+      startTime = breakEndTime;
+    }
+  }
+  async function _handleWorkPhase(app, options2, focusNote, workEndTime, cycleIndex) {
+    console.log(`Cycle ${cycleIndex + 1}: Starting work phase...`);
+    const workInterval = setInterval(() => {
+      _logRemainingTime(app, options2, focusNote, workEndTime, "work", cycleIndex);
+    }, options2.updateInterval);
+    await _sleepUntil(workEndTime);
+    clearInterval(workInterval);
+    app.alert(`Cycle ${cycleIndex + 1}: Work phase completed. Take a break!`);
+  }
+  async function _handleBreakPhase(app, options2, focusNote, workEndTime, breakEndTime, cycleIndex, cycles) {
+    await _appendToNote(app, `- Cycle ${cycleIndex + 1} debrief:`);
+    if (cycleIndex < cycles - 1) {
+      await _appendToNote(app, `- Cycle ${cycleIndex + 2} plan:`);
+      console.log(`Cycle ${cycleIndex + 1}: Starting break phase...`);
+      const breakInterval = setInterval(() => {
+        _logRemainingTime(app, focusNote, breakEndTime, "break", cycleIndex);
+      }, options2.updateInterval);
+      await _sleepUntil(breakEndTime);
+      clearInterval(breakInterval);
+      app.alert(`Cycle ${cycleIndex + 1}: Break phase completed. Start working!`);
+      console.log(`Cycle ${cycleIndex + 1}: Break phase completed.`);
+    } else {
+      await _appendToNote(app, `- Session debrief:`);
+      console.log(`Session complete.`);
+      app.alert(`Session complete. Debrief and relax.`);
+    }
+  }
+  function _logRemainingTime(app, options2, focusNote, endTime, phase, cycleIndex) {
+    const remainingTime = endTime.getTime() - Date.now();
+    if (remainingTime > 0) {
+      const remainingMinutes = Math.ceil(remainingTime / 1e3 / 60);
+      const phaseDuration = phase === "work" ? options2.workDuration : options2.breakDuration;
+      const progressBar = _emojiProgressBar(phaseDuration, phaseDuration - remainingTime);
+      const message = `- Cycle ${cycleIndex + 1} ${phase} phase remaining time: ${remainingMinutes} minutes
+${progressBar}
+`;
+      app.replaceNoteContent(focusNote, message);
+    }
+  }
+  function _emojiProgressBar(total, done, width = 320, range = ["\u{1F311}", "\u{1F312}", "\u{1F313}", "\u{1F314}", "\u{1F315}"]) {
+    const n = Math.floor(width / 25);
+    const step = total / n;
+    const emoji = (portion) => {
+      const domain = [0, 1];
+      const quantizedPortion = (portion - domain[0]) / (domain[1] - domain[0]) * (range.length - 1);
+      const index = Math.floor(quantizedPortion);
+      return range[index];
+    };
+    const phases = Array.from(new Array(n), (d, i) => {
+      const portion = done % step / step;
+      return done / step >= i + 1 ? range[range.length - 1] : done / step < i ? range[0] : emoji(portion);
+    });
+    return phases.join(" ");
+  }
+  async function _sleepUntil(endTime) {
+    const sleepTime = endTime.getTime() - Date.now();
+    await _sleep(sleepTime);
+  }
+  function _sleep(ms) {
+    return new Promise((resolve) => {
+      if (ms > 0) {
+        setTimeout(resolve, ms);
+      } else {
+        resolve();
+      }
+    });
+  }
+
   // lib/ampletime/reports.js
   async function _createLegendSquare(color, options2) {
     console.log(`_createLegendSquare(${color})`);
@@ -387,13 +658,12 @@ ${dataRows}`;
         }, "image/png");
       });
     }
-    ;
     console.log(canvasToBlob);
     let blob = await canvasToBlob(canvas);
     console.log(blob);
     return await _dataURLFromBlob(blob);
   }
-  async function _generateRadar(taskDistribution, options2) {
+  async function _generateRadar(taskDistribution) {
     console.log(`_generateRadar(${taskDistribution})`);
     let radarLabels = {
       q1: "Q1: Important & Urgent",
@@ -445,8 +715,7 @@ ${dataRows}`;
     console.log(chart.getUrl());
     let response = await fetch(chart.getUrl());
     let blob = await response.blob();
-    let dataURL = await _dataURLFromBlob(blob);
-    return dataURL;
+    return await _dataURLFromBlob(blob);
   }
   async function _generatePie(taskDurations, options2) {
     console.log(`generatePie(${taskDurations})`);
@@ -493,8 +762,7 @@ ${dataRows}`;
     console.log(chart.getUrl());
     let response = await fetch(chart.getUrl());
     let blob = await response.blob();
-    let dataURL = await _dataURLFromBlob(blob);
-    return dataURL;
+    return await _dataURLFromBlob(blob);
   }
   async function _generateDurationsReport(app, options2, resultsHandle, taskDurations) {
     console.log(`Creating legend squares...`);
@@ -541,7 +809,6 @@ ${dataRows}`;
     console.log(resultsTable);
     console.log(`Inserting results in report note...`);
     await app.insertNoteContent(resultsHandle, resultsTable);
-    ;
     console.log(`Generating QuickChart (radar)...`);
     let pieDataURL;
     try {
@@ -756,281 +1023,6 @@ ${dataRows}`;
       script.onload = resolve;
       script.onerror = reject;
       document.head.appendChild(script);
-    });
-  }
-
-  // lib/amplefocus/amplefocus.js
-  async function _focus(app, options2, startTime, cycleCount) {
-    console.log("Starting Amplefocus...");
-    let dash = await _ensureDashboardNote(app, options2);
-    let isSessionRunning = await _isTaskRunning(app, dash);
-    if (isSessionRunning) {
-      if (!options2.alwaysStopRunningTask) {
-        if (!options2.alwaysResumeOpenTask) {
-          let result = await app.prompt(
-            `The previous session was not completed. Abandon it or continue where you left off?`,
-            {
-              inputs: [
-                {
-                  type: "radio",
-                  options: [
-                    { label: "Abandon previous session", value: true },
-                    { label: "Pick up where you left off", value: false }
-                  ]
-                }
-              ]
-            }
-          );
-          if (!result) {
-            console.log("Continuing previous uncompleted session.");
-            await _startSession(app, options2, startTime, cycleCount, isSessionRunning["Cycle progress"] + 1);
-            return;
-          } else {
-            console.log(`Stopping current task...`);
-            await _stopTask(app, dash, options2);
-          }
-        } else {
-          console.log("Continuing previous uncompleted session.");
-          await _startSession(app, options2, startTime, cycleCount, isSessionRunning["Cycle progress"] + 1);
-          return;
-        }
-      } else {
-        console.log(`Stopping current task...`);
-        await _stopTask(app, dash, options2);
-      }
-    }
-    console.log(`Task running: ${isSessionRunning}`);
-    const newRow = {
-      // "Session ID": Math.max(dash.map(e => e["Session ID"])) + 1,
-      "Source Note": _makeNoteLink(await app.findNote({ uuid: app.context.noteUUID })),
-      "Start Time": /* @__PURE__ */ new Date(),
-      "Cycle Count": cycleCount,
-      "Cycle Progress": 0,
-      "End Time": ""
-    };
-    await _logStartTime(app, dash, newRow, options2);
-    const initialQuestions = await _promptInitialQuestions(app, options2);
-    await _insertLog(app, options2, startTime, cycleCount, initialQuestions);
-    await _startSession(app, options2, startTime, cycleCount);
-    const focusNote = await _getFocusNote(app);
-    await app.navigate(
-      `https://www.amplenote.com/notes/${focusNote.uuid}`
-    );
-  }
-  async function _promptInput(app, options2) {
-    const startTime = await _promptStartTime(app);
-    if (!startTime) {
-      return;
-    }
-    const cycleCount = await _promptCycleCount(app, options2, startTime);
-    if (!cycleCount) {
-      return;
-    }
-    return [new Date(Number(startTime)), cycleCount];
-  }
-  async function _promptStartTime(app) {
-    const startTimeOptions = _generateStartTimeOptions();
-    const result = await app.prompt("Focus Cycle Configuration", {
-      inputs: [
-        {
-          label: "Start Time",
-          type: "select",
-          options: startTimeOptions
-        }
-      ]
-    });
-    return result;
-  }
-  async function _promptCycleCount(app, options2, startTimeValue) {
-    const startTime = new Date(Number(startTimeValue));
-    console.log("Start time selected:", _formatAsTime(startTime));
-    const cycleOptions = _generateCycleOptions(options2, startTime);
-    const cycleResult = await app.prompt("Focus Cycle Configuration", {
-      inputs: [
-        {
-          label: "Number of Cycles",
-          type: "select",
-          options: cycleOptions
-        }
-      ]
-    });
-    return cycleResult;
-  }
-  async function _promptInitialQuestions(app, options2) {
-    const initialQuestions = await app.prompt("Initial Questions", {
-      inputs: options2.initialQuestions.map(function(question) {
-        return {
-          label: question,
-          type: "text"
-        };
-      })
-    });
-    console.log(options2.initialQuestions);
-    return options2.initialQuestions;
-  }
-  async function _insertLog(app, options2, startTime, cycleCount, initialQuestions) {
-    const focusNote = await _getFocusNote(app);
-    const focusNoteLink = _formatNoteLink(focusNote.name, focusNote.uuid);
-    const timestamp = (/* @__PURE__ */ new Date()).toLocaleTimeString(
-      void 0,
-      { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }
-    );
-    const sessionMarkdown = [
-      `- **[${timestamp}]** ${focusNoteLink} for ${cycleCount} cycles`
-    ];
-    console.log(options2.initialQuestions);
-    for (let i = 0; i < options2.initialQuestions.length; i++) {
-      sessionMarkdown.push(
-        `  - **${options2.initialQuestions[i]}**`
-      );
-      let answer = options2.initialQuestions[i];
-      sessionMarkdown.push(`    - ${answer}`);
-    }
-    await _appendToNote(app, sessionMarkdown.join("\n"));
-  }
-  async function _appendToNote(app, contents, targetNoteUUID = null) {
-    if (!targetNoteUUID) {
-      targetNoteUUID = app.context.noteUUID;
-    }
-    await app.insertNoteContent({ uuid: targetNoteUUID }, contents, { atEnd: true });
-  }
-  function _formatNoteLink(name, uuid) {
-    return `[${name}](https://www.amplenote.com/notes/${uuid})`;
-  }
-  function _formatAsTime(date) {
-    const options2 = { hour: "2-digit", minute: "2-digit", hour12: false };
-    const timeString = date.toLocaleTimeString(void 0, options2);
-    return timeString;
-  }
-  async function _getFocusNote(app) {
-    const focusNotes = await app.filterNotes({ tag: "focus" });
-    console.log(focusNotes);
-    let focusNote;
-    if (focusNotes.length > 0) {
-      focusNote = focusNotes[0];
-    } else {
-      let focusNoteUUID = await app.createNote("Focus", ["focus"]);
-      focusNote = await app.findNote({ uuid: focusNoteUUID });
-      console.log(focusNote);
-    }
-    return focusNote;
-  }
-  function _generateStartTimeOptions() {
-    console.log("Generating start time options...");
-    const options2 = [];
-    const now = /* @__PURE__ */ new Date();
-    const currentMinutes = now.getMinutes();
-    const roundedMinutes = Math.floor(currentMinutes / 5) * 5;
-    now.setMinutes(roundedMinutes);
-    now.setSeconds(0);
-    for (let offset = -20; offset <= 20; offset += 5) {
-      const time = new Date(now.getTime() + offset * 60 * 1e3);
-      const label = _formatAsTime(time);
-      const value = time.getTime();
-      options2.push({ label, value });
-    }
-    console.log("Start time options generated.");
-    return options2;
-  }
-  function _generateCycleOptions(startTime, options2) {
-    console.log("Generating cycle options...");
-    const cycleOptions = [];
-    for (let cycles = 2; cycles <= 8; cycles++) {
-      const endTime = _calculateEndTime(options2, startTime, cycles);
-      const label = `${cycles} cycles (until ${_formatAsTime(endTime)})`;
-      cycleOptions.push({ label, value: cycles });
-    }
-    console.log("Cycle options generated.");
-    return options2;
-  }
-  function _calculateEndTime(options2, startTime, cycles) {
-    console.log("Calculating end time for given start time and cycles...");
-    const totalTime = (options2.workDuration + options2.breakDuration) * cycles;
-    const endTime = new Date(startTime.getTime() + totalTime);
-    console.log("Start time:", new Date(startTime));
-    console.log("Cycles:", cycles);
-    console.log("End time calculated:", _formatAsTime(endTime));
-    return endTime;
-  }
-  async function _startSession(app, options2, startTime, cycles, firstCycle) {
-    console.log("Starting focus cycle...");
-    const focusNote = await _getFocusNote(app);
-    if (!firstCycle)
-      firstCycle = 0;
-    for (let i = firstCycle; i < cycles; i++) {
-      const workEndTime = new Date(startTime.getTime() + options2.workDuration);
-      const breakEndTime = new Date(workEndTime.getTime() + options2.breakDuration);
-      await _handleWorkPhase(app, options2, focusNote, workEndTime, i);
-      await _handleBreakPhase(app, options2, focusNote, workEndTime, breakEndTime, i, cycles);
-      startTime = breakEndTime;
-    }
-  }
-  async function _handleWorkPhase(app, options2, focusNote, workEndTime, cycleIndex) {
-    console.log(`Cycle ${cycleIndex + 1}: Starting work phase...`);
-    const workInterval = setInterval(() => {
-      _logRemainingTime(app, options2, focusNote, workEndTime, "work", cycleIndex);
-    }, options2.updateInterval);
-    await _sleepUntil(workEndTime);
-    clearInterval(workInterval);
-    app.alert(`Cycle ${cycleIndex + 1}: Work phase completed. Take a break!`);
-  }
-  async function _handleBreakPhase(app, options2, focusNote, workEndTime, breakEndTime, cycleIndex, cycles) {
-    await _appendToNote(app, `- Cycle ${cycleIndex + 1} debrief:`);
-    if (cycleIndex < cycles - 1) {
-      await _appendToNote(app, `- Cycle ${cycleIndex + 2} plan:`);
-      console.log(`Cycle ${cycleIndex + 1}: Starting break phase...`);
-      const breakInterval = setInterval(() => {
-        _logRemainingTime(app, focusNote, breakEndTime, "break", cycleIndex);
-      }, options2.updateInterval);
-      await _sleepUntil(breakEndTime);
-      clearInterval(breakInterval);
-      app.alert(`Cycle ${cycleIndex + 1}: Break phase completed. Start working!`);
-      console.log(`Cycle ${cycleIndex + 1}: Break phase completed.`);
-    } else {
-      await _appendToNote(app, `- Session debrief:`);
-      console.log(`Session complete.`);
-      app.alert(`Session complete. Debrief and relax.`);
-    }
-  }
-  function _logRemainingTime(app, options2, focusNote, endTime, phase, cycleIndex) {
-    const remainingTime = endTime.getTime() - Date.now();
-    if (remainingTime > 0) {
-      const remainingMinutes = Math.ceil(remainingTime / 1e3 / 60);
-      const phaseDuration = phase === "work" ? options2.workDuration : options2.breakDuration;
-      const progressBar = _emojiProgressBar(phaseDuration, phaseDuration - remainingTime);
-      const message = `- Cycle ${cycleIndex + 1} ${phase} phase remaining time: ${remainingMinutes} minutes
-${progressBar}
-`;
-      app.replaceNoteContent(focusNote, message);
-    }
-  }
-  function _emojiProgressBar(total, done, width = 320, range = ["\u{1F311}", "\u{1F312}", "\u{1F313}", "\u{1F314}", "\u{1F315}"]) {
-    const n = Math.floor(width / 25);
-    const l = total;
-    const step = l / n;
-    const emoji = (portion) => {
-      const domain = [0, 1];
-      const quantizedPortion = (portion - domain[0]) / (domain[1] - domain[0]) * (range.length - 1);
-      const index = Math.floor(quantizedPortion);
-      return range[index];
-    };
-    const phases = Array.from(new Array(n), (d, i) => {
-      const portion = done % step / step;
-      return done / step >= i + 1 ? range[range.length - 1] : done / step < i ? range[0] : emoji(portion);
-    });
-    return phases.join(" ");
-  }
-  async function _sleepUntil(endTime) {
-    const sleepTime = endTime.getTime() - Date.now();
-    await _sleep(sleepTime);
-  }
-  function _sleep(ms) {
-    return new Promise((resolve) => {
-      if (ms > 0) {
-        setTimeout(resolve, ms);
-      } else {
-        resolve();
-      }
     });
   }
 
