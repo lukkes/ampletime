@@ -71,9 +71,9 @@ ${dataRows}`;
     console.log(totalSeconds);
     return totalSeconds;
   }
-  function _calculateDuration(startTime2, endTime) {
-    console.log(`_calculateDuration(${startTime2}, ${endTime})`);
-    let start = new Date(startTime2);
+  function _calculateDuration(startTime, endTime) {
+    console.log(`_calculateDuration(${startTime}, ${endTime})`);
+    let start = new Date(startTime);
     let end = new Date(endTime);
     let durationMillis = end - start;
     let hours = Math.floor(durationMillis / 36e5);
@@ -136,6 +136,34 @@ ${dataRows}`;
     return `${month} ${day}${daySuffix}, ${year}`;
   }
 
+  // lib/data-structures.js
+  function _insertRowToDict(tableDict, newRow) {
+    console.log(`_insertRowToDict(${tableDict}, ${newRow})`);
+    tableDict.unshift(newRow);
+    return tableDict;
+  }
+  function _dataURLFromBlob(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        resolve(event.target.result);
+      };
+      reader.onerror = function(event) {
+        reader.abort();
+        reject(event.target.error);
+      };
+      reader.readAsDataURL(blob);
+    });
+  }
+  function _insertColumnInMemory(memory, name, data) {
+    console.log(`_insertColumnInMemory(${memory}, ${name}, ${data})`);
+    console.log(memory);
+    return memory.map((obj, index) => ({
+      [name]: data[index],
+      ...obj
+    }));
+  }
+
   // lib/ampletime/dashboard.js
   async function _ensureDashboardNote(app, options) {
     console.log(`_ensureDashboardNote`);
@@ -178,8 +206,7 @@ ${dataRows}`;
   }
   async function _isTaskRunning(app, dash) {
     console.log(`_isTaskRunning(${dash})`);
-    let content = await app.getNoteContent(dash);
-    const table = _markdownTableToDict(content);
+    const table = await _readDasbhoard(app, dash);
     console.log(table);
     if (!table)
       return false;
@@ -190,179 +217,35 @@ ${dataRows}`;
     return false;
   }
   async function _stopTask(app, dash, options) {
-    let content = await app.getNoteContent(dash);
-    let tableDict = _markdownTableToDict(content);
-    tableDict = _addEndTimeToDict(tableDict, await _getCurrentTime());
-    let updatedTableMarkdown = _dictToMarkdownTable(tableDict);
-    const section = { heading: { text: options.sectionTitleDashboardEntries } };
-    await app.replaceNoteContent(dash, updatedTableMarkdown, { section });
+    let tableDict = await _readDasbhoard(app, dash);
+    tableDict = _editTopTableCell(tableDict, "End Time", await _getCurrentTime());
+    await writeDashboard(app, options, dash, tableDict);
     return true;
   }
-  function _addEndTimeToDict(tableDict, currentTime) {
-    console.log(`_addEndTimeToDict(${tableDict}, ${currentTime})`);
-    for (let row of tableDict) {
-      if (!row["End Time"]) {
-        row["End Time"] = currentTime;
-        break;
-      }
-    }
+  function _editTopTableCell(tableDict, key, value) {
+    console.log(`_addEndTimeToDict(${tableDict}, ${key}, ${value})`);
+    tableDict[0][key] = value;
     return tableDict;
   }
-
-  // lib/data-structures.js
-  function _insertRowToDict(tableDict, newRow) {
-    console.log(`_insertRowToDict(${tableDict}, ${newRow})`);
-    tableDict.unshift(newRow);
+  async function _readDasbhoard(app, dash) {
+    let content = await app.getNoteContent(dash);
+    let tableDict = _markdownTableToDict(content);
     return tableDict;
   }
-  function _dataURLFromBlob(blob) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        resolve(event.target.result);
-      };
-      reader.onerror = function(event) {
-        reader.abort();
-        reject(event.target.error);
-      };
-      reader.readAsDataURL(blob);
-    });
-  }
-  function _insertColumnInMemory(memory, name, data) {
-    console.log(`_insertColumnInMemory(${memory}, ${name}, ${data})`);
-    console.log(memory);
-    return memory.map((obj, index) => ({
-      [name]: data[index],
-      ...obj
-    }));
-  }
-
-  // lib/ampletime/entries.js
-  function _getEntryName(entry) {
-    if (!entry)
-      return "All";
-    if (entry.data.taskName) {
-      return `${_getLinkText(entry.data.projectName)}: ${entry.data.taskName}`;
-    } else {
-      return _getLinkText(entry.data.projectName);
-    }
-  }
-  function _entryFromRow(row) {
-    let entry = {};
-    entry.data = {};
-    entry.data.taskName = row["Task Name"];
-    entry.data.projectName = row["Project Name"];
-    if (entry.data.taskName)
-      entry.type = "task";
-    else
-      entry.type = "project";
-    return entry;
-  }
-
-  // lib/ampletime/tasks.js
-  async function _getTaskDistribution(app, dash, target, startDate, endDate) {
-    console.log(`_getTaskDistribution()`);
-    let content = await app.getNoteContent(dash);
-    let tableDict = _markdownTableToDict(content);
-    console.log(tableDict);
-    let entries = _getEntriesWithinDates(tableDict, target, startDate, endDate);
-    console.log(entries);
-    if (!entries)
-      return;
-    entries = entries.filter((item) => item["Task Name"]);
-    let taskDistribution = { "q1": [], "q2": [], "q3": [], "q4": [] };
-    for (let entry of entries) {
-      let matches = entry["Task Name"].match(/\(([a-zA-Z0-9-]+?)\)/gm);
-      let taskUUID = matches[matches.length - 1];
-      taskUUID = taskUUID.slice(1, taskUUID.length - 1);
-      let task = await app.getTask(taskUUID);
-      if (task.urgent && task.important)
-        taskDistribution.q1.push(entry);
-      else if (!task.urgent && task.important)
-        taskDistribution.q2.push(entry);
-      else if (task.urgent && !task.important)
-        taskDistribution.q3.push(entry);
-      else if (!task.urgent && !task.important)
-        taskDistribution.q4.push(entry);
-    }
-    for (let key of Object.keys(taskDistribution)) {
-      let durations = await _calculateTaskDurations(taskDistribution[key]);
-      let sum = durations.reduce((pv, cv) => _addDurations(pv, cv["Duration"]), "00:00:00");
-      taskDistribution[key] = {
-        count: taskDistribution[key].length,
-        duration: _durationToSeconds(sum) / 60 / 60
-      };
-    }
-    return taskDistribution;
-  }
-  async function _getTaskDurations(app, dash, target, startDate, endDate) {
-    console.log(`_getTaskDurations(app, ${_getEntryName(target)}, ${startDate}, ${endDate})`);
-    let content = await app.getNoteContent(dash);
-    let tableDict = _markdownTableToDict(content);
-    console.log(tableDict);
-    let entries = _getEntriesWithinDates(tableDict, target, startDate, endDate);
-    console.log(entries);
-    if (!entries)
-      return;
-    let taskDurations = await _calculateTaskDurations(entries);
-    console.log(taskDurations);
-    return taskDurations;
-  }
-  async function _logStartTime(app, dash, newRow, options) {
-    console.log(`_logStartTime(${dash}, ${newRow}`);
-    let content = await app.getNoteContent(dash);
-    let tableDict = _markdownTableToDict(content);
-    console.log(tableDict);
-    tableDict = _insertRowToDict(tableDict, newRow);
-    console.log(tableDict);
+  async function writeDashboard(app, options, dash, tableDict) {
     let updatedTableMarkdown = _dictToMarkdownTable(tableDict);
     console.log(updatedTableMarkdown);
     const section = { heading: { text: options.sectionTitleDashboardEntries } };
     await app.replaceNoteContent(dash, updatedTableMarkdown, { section });
+  }
+  async function _logStartTime(app, dash, newRow, options) {
+    console.log(`_logStartTime(${dash}, ${newRow}`);
+    let tableDict = await _readDasbhoard(app, dash);
+    console.log(tableDict);
+    tableDict = _insertRowToDict(tableDict, newRow);
+    console.log(tableDict);
+    await writeDashboard(app, options, dash, tableDict);
     return true;
-  }
-  function _getEntriesWithinDates(tableDict, target, startDate, endDate) {
-    console.log(`_getEntriesWithinDates(${tableDict}, ${_getEntryName(target)}, ${startDate}, ${endDate}`);
-    let entries = tableDict.filter((row) => {
-      let endTime = new Date(row["End Time"]);
-      console.log(new Date(row["End Time"]));
-      return endTime >= startDate && endTime <= endDate;
-    });
-    if (target)
-      entries = entries.filter((row) => {
-        return row["Project Name"] === target.data.projectName && row["Task Name"] === target.data.taskName;
-      });
-    return entries;
-  }
-  async function _calculateTaskDurations(entries, type = "Project") {
-    console.log(`_calculateTaskDurations(${entries})`);
-    let taskDurations = {};
-    entries.forEach((entry) => {
-      let targetName;
-      if (type === "Project")
-        targetName = entry["Project Name"];
-      else if (type === "Task")
-        targetName = _getEntryName(_entryFromRow(entry));
-      else
-        return [];
-      let duration = _calculateDuration(entry["Start Time"], entry["End Time"]);
-      if (targetName in taskDurations) {
-        taskDurations[targetName] = _addDurations(taskDurations[targetName], duration);
-      } else {
-        taskDurations[targetName] = duration;
-      }
-    });
-    let sortedTasks = Object.entries(taskDurations).sort((a, b) => {
-      let aDurationInSeconds = _durationToSeconds(a[1]);
-      let bDurationInSeconds = _durationToSeconds(b[1]);
-      return bDurationInSeconds - aDurationInSeconds;
-    });
-    return sortedTasks.map((task) => {
-      return {
-        "Entry Name": task[0],
-        "Duration": task[1]
-      };
-    });
   }
 
   // lib/amplefocus/amplefocus.js
@@ -393,7 +276,8 @@ ${dataRows}`;
       );
       if (result === "resume") {
         console.log("Continuing previous uncompleted session.");
-        await _startSession(app, options, startTime, cycleCount, isSessionRunning["Cycle progress"] + 1);
+        let startTime = await _promptStartTime(app);
+        await _startSession(app, options, dash, startTime, isSessionRunning["Cycle Count"], isSessionRunning["Cycle progress"] + 1);
         return false;
       } else if (result === "abandon") {
         console.log(`Stopping current task...`);
@@ -407,38 +291,38 @@ ${dataRows}`;
       return dash;
     }
   }
-  async function _focus(app, options, dash, startTime2, cycleCount2) {
+  async function _focus(app, options, dash, startTime, cycleCount) {
     const newRow = {
       // "Session ID": Math.max(dash.map(e => e["Session ID"])) + 1,
       "Source Note": _makeNoteLink(await app.findNote({ uuid: app.context.noteUUID })),
       "Start Time": /* @__PURE__ */ new Date(),
-      "Cycle Count": cycleCount2,
+      "Cycle Count": cycleCount,
       "Cycle Progress": 0,
       "End Time": ""
     };
     await _logStartTime(app, dash, newRow, options);
     const initialQuestions = await _promptInitialQuestions(app, options);
-    await _insertLog(app, options, startTime2, cycleCount2, initialQuestions);
-    await _startSession(app, options, startTime2, cycleCount2);
+    await _insertLog(app, options, startTime, cycleCount, initialQuestions);
+    await _startSession(app, options, dash, startTime, cycleCount);
     const focusNote = await _getFocusNote(app);
     await app.navigate(
       `https://www.amplenote.com/notes/${focusNote.uuid}`
     );
   }
   async function _promptInput(app, options) {
-    const startTime2 = await _promptStartTime(app);
-    if (!startTime2) {
+    const startTime = await _promptStartTime(app);
+    if (!startTime) {
       return;
     }
-    const cycleCount2 = await _promptCycleCount(app, options, startTime2);
-    if (!cycleCount2) {
+    const cycleCount = await _promptCycleCount(app, options, startTime);
+    if (!cycleCount) {
       return;
     }
-    return [new Date(Number(startTime2)), cycleCount2];
+    return [startTime, cycleCount];
   }
   async function _promptStartTime(app) {
     const startTimeOptions = _generateStartTimeOptions();
-    return await app.prompt("Focus Cycle Configuration", {
+    return new Date(Number(await app.prompt("Focus Cycle Configuration", {
       inputs: [
         {
           label: "Start Time",
@@ -446,12 +330,12 @@ ${dataRows}`;
           options: startTimeOptions
         }
       ]
-    });
+    })));
   }
   async function _promptCycleCount(app, options, startTimeValue) {
-    const startTime2 = new Date(Number(startTimeValue));
-    console.log("Start time selected:", _formatAsTime(startTime2));
-    const cycleOptions = _generateCycleOptions(startTime2, options);
+    const startTime = new Date(Number(startTimeValue));
+    console.log("Start time selected:", _formatAsTime(startTime));
+    const cycleOptions = _generateCycleOptions(startTime, options);
     return await app.prompt("Focus Cycle Configuration", {
       inputs: [
         {
@@ -474,7 +358,7 @@ ${dataRows}`;
     console.log(initialQuestions);
     return initialQuestions || [];
   }
-  async function _insertLog(app, options, startTime2, cycleCount2, initialQuestions) {
+  async function _insertLog(app, options, startTime, cycleCount, initialQuestions) {
     const focusNote = await _getFocusNote(app);
     const focusNoteLink = _formatNoteLink(focusNote.name, focusNote.uuid);
     const timestamp = (/* @__PURE__ */ new Date()).toLocaleTimeString(
@@ -482,7 +366,7 @@ ${dataRows}`;
       { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }
     );
     const sessionMarkdown = [
-      `- **[${timestamp}]** ${focusNoteLink} for ${cycleCount2} cycles`
+      `- **[${timestamp}]** ${focusNoteLink} for ${cycleCount} cycles`
     ];
     console.log(initialQuestions);
     for (let i = 0; i < initialQuestions.length; i++) {
@@ -537,38 +421,41 @@ ${dataRows}`;
     console.log("Start time options generated.");
     return options;
   }
-  function _generateCycleOptions(startTime2, options) {
+  function _generateCycleOptions(startTime, options) {
     console.log("Generating cycle options...");
     const cycleOptions = [];
     for (let cycles = 2; cycles <= 8; cycles++) {
-      const endTime = _calculateEndTime(options, startTime2, cycles);
+      const endTime = _calculateEndTime(options, startTime, cycles);
       const label = `${cycles} cycles (until ${_formatAsTime(endTime)})`;
       cycleOptions.push({ label, value: cycles });
     }
     console.log("Cycle options generated.");
     return cycleOptions;
   }
-  function _calculateEndTime(options, startTime2, cycles) {
+  function _calculateEndTime(options, startTime, cycles) {
     console.log("Calculating end time for given start time and cycles...");
     const totalTime = (options.workDuration + options.breakDuration) * cycles;
-    const endTime = new Date(startTime2.getTime() + totalTime);
-    console.log("Start time:", new Date(startTime2));
+    const endTime = new Date(startTime.getTime() + totalTime);
+    console.log("Start time:", new Date(startTime));
     console.log("Cycles:", cycles);
     console.log("End time calculated:", _formatAsTime(endTime));
     return endTime;
   }
-  async function _startSession(app, options, startTime2, cycles, firstCycle) {
+  async function _startSession(app, options, dash, startTime, cycles, firstCycle) {
     console.log("Starting focus cycle...");
     const focusNote = await _getFocusNote(app);
     if (!firstCycle)
       firstCycle = 0;
     for (let i = firstCycle; i < cycles; i++) {
-      const workEndTime = new Date(startTime2.getTime() + options.workDuration);
+      const workEndTime = new Date(startTime.getTime() + options.workDuration);
       const breakEndTime = new Date(workEndTime.getTime() + options.breakDuration);
       await _handleWorkPhase(app, options, focusNote, workEndTime, i);
-      await _handleBreakPhase(app, options, focusNote, workEndTime, breakEndTime, i, cycles);
-      startTime2 = breakEndTime;
+      await _handleBreakPhase(app, options, dash, focusNote, workEndTime, breakEndTime, i, cycles);
+      startTime = breakEndTime;
     }
+    let dashTable = await _readDasbhoard(app, dash);
+    dashTable = _editTopTableCell(dashTable, "End Time", await _getCurrentTime());
+    await writeDashboard(app, options, dash, dashTable);
   }
   async function _handleWorkPhase(app, options, focusNote, workEndTime, cycleIndex) {
     console.log(`Cycle ${cycleIndex + 1}: Starting work phase...`);
@@ -579,8 +466,11 @@ ${dataRows}`;
     clearInterval(workInterval);
     app.alert(`Cycle ${cycleIndex + 1}: Work phase completed. Take a break!`);
   }
-  async function _handleBreakPhase(app, options, focusNote, workEndTime, breakEndTime, cycleIndex, cycles) {
+  async function _handleBreakPhase(app, options, dash, focusNote, workEndTime, breakEndTime, cycleIndex, cycles) {
     await _appendToNote(app, `- Cycle ${cycleIndex + 1} debrief:`);
+    let dashTable = await _readDasbhoard(app, dash);
+    dashTable = _editTopTableCell(dashTable, "Cycle Progress", cycleIndex + 1);
+    await writeDashboard(app, options, dash, dashTable);
     if (cycleIndex < cycles - 1) {
       await _appendToNote(app, `- Cycle ${cycleIndex + 2} plan:`);
       console.log(`Cycle ${cycleIndex + 1}: Starting break phase...`);
@@ -636,6 +526,119 @@ ${progressBar}
       } else {
         resolve();
       }
+    });
+  }
+
+  // lib/ampletime/entries.js
+  function _getEntryName(entry) {
+    if (!entry)
+      return "All";
+    if (entry.data.taskName) {
+      return `${_getLinkText(entry.data.projectName)}: ${entry.data.taskName}`;
+    } else {
+      return _getLinkText(entry.data.projectName);
+    }
+  }
+  function _entryFromRow(row) {
+    let entry = {};
+    entry.data = {};
+    entry.data.taskName = row["Task Name"];
+    entry.data.projectName = row["Project Name"];
+    if (entry.data.taskName)
+      entry.type = "task";
+    else
+      entry.type = "project";
+    return entry;
+  }
+
+  // lib/ampletime/tasks.js
+  async function _getTaskDistribution(app, dash, target, startDate, endDate) {
+    console.log(`_getTaskDistribution()`);
+    let tableDict = await _readDasbhoard(app, dash);
+    console.log(tableDict);
+    let entries = _getEntriesWithinDates(tableDict, target, startDate, endDate);
+    console.log(entries);
+    if (!entries)
+      return;
+    entries = entries.filter((item) => item["Task Name"]);
+    let taskDistribution = { "q1": [], "q2": [], "q3": [], "q4": [] };
+    for (let entry of entries) {
+      let matches = entry["Task Name"].match(/\(([a-zA-Z0-9-]+?)\)/gm);
+      let taskUUID = matches[matches.length - 1];
+      taskUUID = taskUUID.slice(1, taskUUID.length - 1);
+      let task = await app.getTask(taskUUID);
+      if (task.urgent && task.important)
+        taskDistribution.q1.push(entry);
+      else if (!task.urgent && task.important)
+        taskDistribution.q2.push(entry);
+      else if (task.urgent && !task.important)
+        taskDistribution.q3.push(entry);
+      else if (!task.urgent && !task.important)
+        taskDistribution.q4.push(entry);
+    }
+    for (let key of Object.keys(taskDistribution)) {
+      let durations = await _calculateTaskDurations(taskDistribution[key]);
+      let sum = durations.reduce((pv, cv) => _addDurations(pv, cv["Duration"]), "00:00:00");
+      taskDistribution[key] = {
+        count: taskDistribution[key].length,
+        duration: _durationToSeconds(sum) / 60 / 60
+      };
+    }
+    return taskDistribution;
+  }
+  async function _getTaskDurations(app, dash, target, startDate, endDate) {
+    console.log(`_getTaskDurations(app, ${_getEntryName(target)}, ${startDate}, ${endDate})`);
+    let tableDict = await _readDasbhoard(app, dash);
+    console.log(tableDict);
+    let entries = _getEntriesWithinDates(tableDict, target, startDate, endDate);
+    console.log(entries);
+    if (!entries)
+      return;
+    let taskDurations = await _calculateTaskDurations(entries);
+    console.log(taskDurations);
+    return taskDurations;
+  }
+  function _getEntriesWithinDates(tableDict, target, startDate, endDate) {
+    console.log(`_getEntriesWithinDates(${tableDict}, ${_getEntryName(target)}, ${startDate}, ${endDate}`);
+    let entries = tableDict.filter((row) => {
+      let endTime = new Date(row["End Time"]);
+      console.log(new Date(row["End Time"]));
+      return endTime >= startDate && endTime <= endDate;
+    });
+    if (target)
+      entries = entries.filter((row) => {
+        return row["Project Name"] === target.data.projectName && row["Task Name"] === target.data.taskName;
+      });
+    return entries;
+  }
+  async function _calculateTaskDurations(entries, type = "Project") {
+    console.log(`_calculateTaskDurations(${entries})`);
+    let taskDurations = {};
+    entries.forEach((entry) => {
+      let targetName;
+      if (type === "Project")
+        targetName = entry["Project Name"];
+      else if (type === "Task")
+        targetName = _getEntryName(_entryFromRow(entry));
+      else
+        return [];
+      let duration = _calculateDuration(entry["Start Time"], entry["End Time"]);
+      if (targetName in taskDurations) {
+        taskDurations[targetName] = _addDurations(taskDurations[targetName], duration);
+      } else {
+        taskDurations[targetName] = duration;
+      }
+    });
+    let sortedTasks = Object.entries(taskDurations).sort((a, b) => {
+      let aDurationInSeconds = _durationToSeconds(a[1]);
+      let bDurationInSeconds = _durationToSeconds(b[1]);
+      return bDurationInSeconds - aDurationInSeconds;
+    });
+    return sortedTasks.map((task) => {
+      return {
+        "Entry Name": task[0],
+        "Duration": task[1]
+      };
     });
   }
 
@@ -1228,11 +1231,12 @@ ${progressBar}
           let dash = await _preStart(app, this.options.amplefocus);
           if (!dash)
             return;
-          const [startTime2, cycleCount2] = await _promptInput(app, this.options.amplefocus);
-          await _focus(app, this.options.amplefocus, dash, startTime2, cycleCount2);
+          const [startTime, cycleCount] = await _promptInput(app, this.options.amplefocus);
+          await _focus(app, this.options.amplefocus, dash, startTime, cycleCount);
         } catch (err) {
           console.log(err);
           app.alert(err);
+          throw err;
         }
       }
     },
