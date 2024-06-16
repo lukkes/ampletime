@@ -3,10 +3,10 @@
  */
 
 
-import {mockApp, mockNote, mockPlugin, mockTask} from "../lib/test-helpers.js";
+import {mockApp, mockNote, mockPlugin, mockPrompter, mockTask} from "../lib/test-helpers.js";
 import {_getISOStringFromDate} from "../lib/ampletime/date-time.js"
 import {_generateReport, _start, _stop} from "../lib/ampletime/ampletime.js";
-import {_focus} from "../lib/amplefocus/amplefocus.js";
+import {_focus, _generateCycleOptions, _generateStartTimeOptions} from "../lib/amplefocus/amplefocus.js";
 
 describe("within a test environment", () => {
     describe("with a newly started project", () => {
@@ -221,6 +221,11 @@ describe("within a test environment", () => {
             const plugin = mockPlugin();
             plugin.options.amplefocus.workDuration = 0.1 * 1000;
             plugin.options.amplefocus.breakDuration = 0.05 * 1000;
+            let startTime = _generateStartTimeOptions()[0].value;
+            plugin.options.amplefocus.mockPrompter = mockPrompter([
+                startTime,
+                _generateCycleOptions(startTime, plugin.options.amplefocus)[3].value, // Should be "5"
+            ]);
 
             //----------------------------------------------------------------------------------------------------------
             it("should create the dashboard and the first  entry", async () => {
@@ -233,8 +238,9 @@ describe("within a test environment", () => {
 | ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
 | [June 12th, 2024](https://www.amplenote.com/notes/1) |`;
                 let expectedRowMatch = /\|.*\|.*\| 5 \| 0 \|  \|/;
+                await plugin.insertText["Start Focus"](app);
                 // await _focus(app, plugin.options.amplefocus, new Date(), cycleCount);
-                await expect(_focus(app, plugin.options.amplefocus, new Date(), cycleCount)).resolves.not.toThrow();
+                // await expect(_focus(app, plugin.options.amplefocus, new Date(), cycleCount)).resolves.not.toThrow();
                 expect(app._noteRegistry["2"].body).toContain(expectedDash);
                 expect(app._noteRegistry["2"].body).toMatch(expectedRowMatch);
             })
