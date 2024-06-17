@@ -482,6 +482,10 @@ ${dataRows}`;
         ]
       }
     );
+    if (!energy)
+      energy = 0;
+    if (!morale)
+      morale = 0;
     return [energy, morale];
   }
   async function _startSession(app, options, dash, startTime, cycles, firstCycle) {
