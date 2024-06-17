@@ -223,9 +223,22 @@ ${dataRows}`;
     return true;
   }
   function _editTopTableCell(tableDict, key, value) {
-    console.log(`_addEndTimeToDict(${tableDict}, ${key}, ${value})`);
+    console.log(`_editTopTableCell(${tableDict}, ${key}, ${value})`);
     tableDict[0][key] = value;
     return tableDict;
+  }
+  function _appendToTopTableCell(tableDict, key, value) {
+    console.log(`_appendToTopLevelCell(${tableDict}, ${key}, ${value}`);
+    let existing = _getTopTableCell(tableDict, key);
+    if (!existing) {
+      tableDict = _editTopTableCell(tableDict, key, value);
+    } else {
+      tableDict = _editTopTableCell(tableDict, key, existing + "," + value);
+    }
+    return tableDict;
+  }
+  function _getTopTableCell(tableDict, key) {
+    return tableDict[0][key];
   }
   async function _readDasbhoard(app, dash) {
     let content = await app.getNoteContent(dash);
@@ -277,7 +290,7 @@ ${dataRows}`;
       if (result === "resume") {
         console.log("Continuing previous uncompleted session.");
         let startTime = await _promptStartTime(app);
-        await _startSession(app, options, dash, startTime, isSessionRunning["Cycle Count"], Number(isSessionRunning["Cycle Progress"]) + 1);
+        await _startSession(app, options, dash, startTime, isSessionRunning["Cycle Count"], Number(isSessionRunning["Cycle Progress"]));
         return false;
       } else if (result === "abandon") {
         console.log(`Stopping current task...`);
@@ -298,6 +311,8 @@ ${dataRows}`;
       "Start Time": await _getCurrentTime(),
       "Cycle Count": cycleCount,
       "Cycle Progress": 0,
+      "Energy Logs": "",
+      "Morale Logs": "",
       "End Time": ""
     };
     await _logStartTime(app, dash, newRow, options);
@@ -441,15 +456,48 @@ ${dataRows}`;
     console.log("End time calculated:", _formatAsTime(endTime));
     return endTime;
   }
+  async function _promptEnergyMorale(app, message) {
+    let [energy, morale] = await app.prompt(
+      message,
+      {
+        inputs: [
+          {
+            label: "Energy (how are you feeling physically?)",
+            type: "select",
+            options: [
+              { label: "Low", value: 1 },
+              { label: "Medium", value: 2 },
+              { label: "High", value: 3 }
+            ]
+          },
+          {
+            label: "Morale (how are you feeling mentally, with respect to the work?)",
+            type: "select",
+            options: [
+              { label: "Low", value: 1 },
+              { label: "Medium", value: 2 },
+              { label: "High", value: 3 }
+            ]
+          }
+        ]
+      }
+    );
+    return [energy, morale];
+  }
   async function _startSession(app, options, dash, startTime, cycles, firstCycle) {
     console.log("Starting focus cycle...");
     const focusNote = await _getFocusNote(app);
     if (!firstCycle)
       firstCycle = 0;
+    let [energy, morale] = await _promptEnergyMorale(app, "It's time to plan the next 30 minutes. How are your energy and morale levels right now?");
+    let tableDict = await _readDasbhoard(app, dash);
+    tableDict = await _appendToTopTableCell(tableDict, "Energy Logs", energy);
+    tableDict = await _appendToTopTableCell(tableDict, "Morale Logs", morale);
+    await writeDashboard(app, options, dash, tableDict);
     for (let i = firstCycle; i < cycles; i++) {
       const workEndTime = new Date(startTime.getTime() + options.workDuration);
       const breakEndTime = new Date(workEndTime.getTime() + options.breakDuration);
-      await _handleWorkPhase(app, options, focusNote, workEndTime, i);
+      await _handleWorkPhase(app, options, dash, focusNote, workEndTime, i, cycles);
       await _handleBreakPhase(app, options, dash, focusNote, workEndTime, breakEndTime, i, cycles);
       startTime = breakEndTime;
     }
@@ -457,14 +505,20 @@ ${dataRows}`;
     dashTable = _editTopTableCell(dashTable, "End Time", await _getCurrentTime());
     await writeDashboard(app, options, dash, dashTable);
   }
-  async function _handleWorkPhase(app, options, focusNote, workEndTime, cycleIndex) {
+  async function _handleWorkPhase(app, options, dash, focusNote, workEndTime, cycleIndex, cycles) {
     console.log(`Cycle ${cycleIndex + 1}: Starting work phase...`);
     const workInterval = setInterval(() => {
       _logRemainingTime(app, options, focusNote, workEndTime, "work", cycleIndex);
     }, options.updateInterval);
     await _sleepUntil(workEndTime);
     clearInterval(workInterval);
-    app.alert(`Cycle ${cycleIndex + 1}: Work phase completed. Take a break!`);
+    if (cycleIndex < cycles - 1) {
+      let [energy, morale] = await _promptEnergyMorale(app, "Work phase completed. It's time to plan the next cycle. How are your energy and morale levels right now?");
+      let tableDict = await _readDasbhoard(app, dash);
+      tableDict = await _appendToTopTableCell(tableDict, "Energy Logs", energy);
+      tableDict = await _appendToTopTableCell(tableDict, "Morale Logs", morale);
+      await writeDashboard(app, options, dash, tableDict);
+    }
   }
   async function _handleBreakPhase(app, options, dash, focusNote, workEndTime, breakEndTime, cycleIndex, cycles) {
     await _appendToNote(app, `- Cycle ${cycleIndex + 1} debrief:`);
@@ -1097,6 +1151,10 @@ ${progressBar}
           "Cycle Count",
           "Cycle Progress",
           // How many cycles were completed fully
+          "Energy Logs",
+          // Comma-separated values (1-3)
+          "Morale Logs",
+          // Comma-separated values (1-3)
           "End Time"
         ],
         workDuration: 30 * 60 * 1e3,
