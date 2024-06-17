@@ -240,7 +240,9 @@ describe("within a test environment", () => {
                 // let startTime = _generateStartTimeOptions()[0].value;
                 plugin.options.amplefocus.mockPrompter = mockPrompter([
                     {index: 0},
-                    {index: 3},
+                    {index: 3}, // This means 5 cycles
+                    ["1", "2", "3", "4", "5", "6"],
+                    [1, 3], [2, 2], [3, 3], [3, 3], [1, 3],
                     // startTime,
                     // _generateCycleOptions(startTime, plugin.options.amplefocus)[3].value, // Should be "5"
                 ]);
@@ -252,8 +254,8 @@ describe("within a test environment", () => {
                 app.context.noteUUID = "1";
                 let cycleCount = 5;
                 let expectedDash = `## ${plugin.options.amplefocus.sectionTitleDashboardEntries}
-| | | | | |
-|-|-|-|-|-|
+|${" |".repeat(plugin.options.amplefocus.dashboardColumns.length)}
+|${"-|".repeat(plugin.options.amplefocus.dashboardColumns.length)}
 | ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
 | [June 12th, 2024](https://www.amplenote.com/notes/1) |`;
                 let expectedRowMatch = /\|.*\|.*\| 5 \| 5 \| .* \|/;
@@ -275,7 +277,9 @@ describe("within a test environment", () => {
                 // let startTime = _generateStartTimeOptions()[0].value;
                 plugin.options.amplefocus.mockPrompter = mockPrompter([
                     {index: 0},
-                    {index: 3},
+                    {index: 3}, // This means 5 cycles
+                    ["1", "2", "3", "4", "5", "6"],
+                    [1, 3], [2, 2], [3, 3], [3, 3], [1, 3],
                     // startTime,
                     // _generateCycleOptions(startTime, plugin.options.amplefocus)[3].value, // Should be "5"
                 ]);
@@ -288,8 +292,8 @@ describe("within a test environment", () => {
                 let cycleCount = 5;
                 await app.createNote(plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard], "", "2");
                 let expectedDash = `## ${plugin.options.amplefocus.sectionTitleDashboardEntries}
-| | | | | |
-|-|-|-|-|-|
+|${" |".repeat(plugin.options.amplefocus.dashboardColumns.length)}
+|${"-|".repeat(plugin.options.amplefocus.dashboardColumns.length)}
 | ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
 | [June 12th, 2024](https://www.amplenote.com/notes/1) |`;
                 let expectedRowMatch = /\|.*\|.*\| 5 \| 5 \| .* \|/;
@@ -312,8 +316,8 @@ describe("within a test environment", () => {
                 plugin.options.amplefocus.workDuration = 0.1 * 1000;
                 plugin.options.amplefocus.breakDuration = 0.05 * 1000;
                 dashContents = `## ${plugin.options.amplefocus.sectionTitleDashboardEntries}
-| | | | | |
-|-|-|-|-|-|
+|${" |".repeat(plugin.options.amplefocus.dashboardColumns.length)}
+|${"-|".repeat(plugin.options.amplefocus.dashboardColumns.length)}
 | ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
 | [June 12th, 2024](https://www.amplenote.com/notes/1) | some date | 5 | 2 |  |`;
             })
@@ -324,7 +328,9 @@ describe("within a test environment", () => {
                     plugin.options.amplefocus.mockPrompter = mockPrompter([
                         "abandon",
                         {index: 0},
-                        {index: 3},
+                        {index: 3}, // This means 5 cycles
+                        ["1", "2", "3", "4", "5", "6"],
+                        [1, 3], [2, 2], [3, 3], [3, 3], [1, 3],
                         // startTime,
                         // _generateCycleOptions(startTime, plugin.options.amplefocus)[3].value, // Should be "5"
                     ]);
@@ -342,12 +348,12 @@ describe("within a test environment", () => {
                     let cycleCount = 5;
                     await app.createNote(plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard], dashContents, "2");
                     let expectedDash = `## ${plugin.options.amplefocus.sectionTitleDashboardEntries}
-| | | | | |
-|-|-|-|-|-|
+|${" |".repeat(plugin.options.amplefocus.dashboardColumns.length)}
+|${"-|".repeat(plugin.options.amplefocus.dashboardColumns.length)}
 | ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
 | [June 12th, 2024](https://www.amplenote.com/notes/1) |`;
                     let expectedRowMatch1 = /\|.*\|.*\| 5 \| 2 \| .* \|/;
-                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 0 \|  |/;
+                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 1,2,3,3,1 \| 3,2,3,3,3 \| .* \|/;
                     await plugin.insertText["Start Focus"](app);
                     // await expect(plugin.insertText["Start Focus"](app)).resolves.not.toThrow();
                     // await _focus(app, plugin.options.amplefocus, new Date(), cycleCount);
@@ -367,7 +373,7 @@ describe("within a test environment", () => {
                     plugin.options.amplefocus.mockPrompter = mockPrompter([
                         "resume",
                         {index: 0},
-                        {index: 3},
+                        [3, 3], [3, 3], [1, 3],
                         // startTime,
                         // _generateCycleOptions(startTime, plugin.options.amplefocus)[3].value, // Should be "5"
                     ]);
@@ -384,11 +390,11 @@ describe("within a test environment", () => {
                         let cycleCount = 5;
                         await app.createNote(plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard], dashContents, "2");
                         let expectedDash = `## ${plugin.options.amplefocus.sectionTitleDashboardEntries}
-| | | | | |
-|-|-|-|-|-|
+|${" |".repeat(plugin.options.amplefocus.dashboardColumns.length)}
+|${"-|".repeat(plugin.options.amplefocus.dashboardColumns.length)}
 | ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
 | [June 12th, 2024](https://www.amplenote.com/notes/1) |`;
-                        let expectedRowMatch2 = /\|.*\|.*\| 5 \| 0 \|  |/;
+                        let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 3,3,1 \| 3,3,3 \| .* \|/;
                         // await plugin.insertText["Start Focus"](app);
                         await expect(plugin.insertText["Start Focus"](app)).resolves.not.toThrow();
                         // await _focus(app, plugin.options.amplefocus, new Date(), cycleCount);
