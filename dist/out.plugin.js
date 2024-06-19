@@ -262,6 +262,48 @@ ${dataRows}`;
   }
 
   // lib/amplefocus/amplefocus.js
+  var state;
+  function changeState(newState) {
+    console.log(`STATE: ${state} => ${newState}`);
+    state = newState;
+  }
+  function pauseSession() {
+    changeState("PAUSED");
+  }
+  function cancelSession() {
+    changeState("NEW");
+  }
+  var timerController;
+  async function stopTimers() {
+    if (state !== "RUNNING") {
+      console.log("Nothing to stop.");
+      return;
+    }
+    timerController.abort();
+  }
+  var runningCriticalCode;
+  var markSafeToExit;
+  var starting;
+  var markStarted;
+  function markStopped() {
+    starting = new Promise((resolve) => {
+      markStarted = () => {
+        changeState("RUNNING");
+        resolve();
+      };
+    });
+  }
+  function initAmplefocus() {
+    changeState("NEW");
+    timerController = new AbortController();
+    runningCriticalCode = new Promise((resolve) => {
+      markSafeToExit = () => {
+        changeState("SAFE");
+        resolve();
+      };
+    });
+    markStopped();
+  }
   async function _preStart(app, options) {
     let dash = await _ensureDashboardNote(app, options);
     let isSessionRunning = await _isTaskRunning(app, dash);
@@ -319,10 +361,7 @@ ${dataRows}`;
     const initialQuestions = await _promptInitialQuestions(app, options);
     await _insertLog(app, options, startTime, cycleCount, initialQuestions);
     await _startSession(app, options, dash, startTime, cycleCount);
-    const focusNote = await _getFocusNote(app);
-    await app.navigate(
-      `https://www.amplenote.com/notes/${focusNote.uuid}`
-    );
+    markSafeToExit();
   }
   async function _promptInput(app, options) {
     const startTime = await _promptStartTime(app);
@@ -501,10 +540,25 @@ ${dataRows}`;
     for (let i = firstCycle; i < cycles; i++) {
       const workEndTime = new Date(startTime.getTime() + options.workDuration);
       const breakEndTime = new Date(workEndTime.getTime() + options.breakDuration);
-      await _handleWorkPhase(app, options, dash, focusNote, workEndTime, i, cycles);
-      await _handleBreakPhase(app, options, dash, focusNote, workEndTime, breakEndTime, i, cycles);
+      try {
+        await _handleWorkPhase(app, options, dash, focusNote, workEndTime, i, cycles);
+        await _handleBreakPhase(app, options, dash, focusNote, workEndTime, breakEndTime, i, cycles);
+      } catch (error) {
+        if (error.name === "AbortError") {
+          console.log("Session canceled");
+          break;
+        }
+      }
       startTime = breakEndTime;
     }
+    if (state !== "PAUSED") {
+      await _writeEndTime(app, options, dash);
+    }
+    if (timerController.signal.aborted) {
+      timerController = new AbortController();
+    }
+  }
+  async function _writeEndTime(app, options, dash) {
     let dashTable = await _readDasbhoard(app, dash);
     dashTable = _editTopTableCell(dashTable, "End Time", await _getCurrentTime());
     await writeDashboard(app, options, dash, dashTable);
@@ -514,7 +568,12 @@ ${dataRows}`;
     const workInterval = setInterval(() => {
       _logRemainingTime(app, options, focusNote, workEndTime, "work", cycleIndex);
     }, options.updateInterval);
-    await _sleepUntil(workEndTime);
+    try {
+      await _sleepUntil(workEndTime);
+    } catch (error) {
+      clearInterval(workInterval);
+      throw error;
+    }
     clearInterval(workInterval);
     if (cycleIndex < cycles - 1) {
       let [energy, morale] = await _promptEnergyMorale(app, "Work phase completed. It's time to plan the next cycle. How are your energy and morale levels right now?");
@@ -535,7 +594,12 @@ ${dataRows}`;
       const breakInterval = setInterval(() => {
         _logRemainingTime(app, focusNote, breakEndTime, "break", cycleIndex);
       }, options.updateInterval);
-      await _sleepUntil(breakEndTime);
+      try {
+        await _sleepUntil(breakEndTime);
+      } catch (error) {
+        clearInterval(breakInterval);
+        throw error;
+      }
       clearInterval(breakInterval);
       app.alert(`Cycle ${cycleIndex + 1}: Break phase completed. Start working!`);
       console.log(`Cycle ${cycleIndex + 1}: Break phase completed.`);
@@ -575,15 +639,21 @@ ${progressBar}
   async function _sleepUntil(endTime) {
     console.log(`Sleeping until ${endTime}...`);
     const sleepTime = endTime.getTime() - Date.now();
-    await _sleep(sleepTime);
+    await _cancellableSleep(sleepTime);
   }
-  function _sleep(ms) {
-    return new Promise((resolve) => {
-      if (ms > 0) {
-        setTimeout(resolve, ms);
-      } else {
+  function _cancellableSleep(ms) {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
         resolve();
-      }
+        markStopped();
+        console.log("Timer finished naturally");
+      }, ms);
+      timerController.signal.addEventListener("abort", () => {
+        console.error("Timer finished forcefully");
+        clearTimeout(timeout);
+        reject(new DOMException("Aborted", "AbortError"));
+      });
+      markStarted();
     });
   }
 
@@ -1257,6 +1327,37 @@ ${progressBar}
         } catch (err) {
           console.log(err);
         }
+      },
+      "Pause Focus": async function(app) {
+        try {
+          console.log("Attempting to pause Amplefocus session...");
+          await stopTimers();
+          pauseSession();
+          await runningCriticalCode;
+        } catch (err) {
+          console.log(err);
+          app.alert(err);
+          throw err;
+        }
+      },
+      "Cancel Focus": async function(app) {
+        try {
+          console.log("Attempting to pause Amplefocus session...");
+          let dash = await _ensureDashboardNote(app, this.options.amplefocus);
+          let task = await _isTaskRunning(app, dash);
+          if (!task) {
+            console.log("Nothing to cancel");
+            return;
+          }
+          await stopTimers();
+          cancelSession();
+          await runningCriticalCode;
+          await _writeEndTime(app, this.options.amplefocus, dash);
+        } catch (err) {
+          console.log(err);
+          app.alert(err);
+          throw err;
+        }
       }
     },
     //===================================================================================
@@ -1290,6 +1391,7 @@ ${progressBar}
       "Start Focus": async function(app) {
         try {
           console.log("Starting Amplefocus...");
+          initAmplefocus();
           let dash = await _preStart(app, this.options.amplefocus);
           if (!dash)
             return;
