@@ -359,7 +359,7 @@ ${dataRows}`;
     };
     await _logStartTime(app, dash, newRow, options);
     const initialQuestions = await _promptInitialQuestions(app, options);
-    await _insertLog(app, options, startTime, cycleCount, initialQuestions);
+    await _insertSessionOverview(app, options, startTime, cycleCount, initialQuestions);
     await _startSession(app, options, dash, startTime, cycleCount);
     markSafeToExit();
   }
@@ -412,7 +412,7 @@ ${dataRows}`;
     console.log(initialQuestions);
     return initialQuestions || [];
   }
-  async function _insertLog(app, options, startTime, cycleCount, initialQuestions) {
+  async function _insertSessionOverview(app, options, startTime, cycleCount, initialQuestions) {
     const focusNote = await _getFocusNote(app);
     const focusNoteLink = _formatNoteLink(focusNote.name, focusNote.uuid);
     const timestamp = (/* @__PURE__ */ new Date()).toLocaleTimeString(
@@ -420,15 +420,16 @@ ${dataRows}`;
       { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }
     );
     const sessionMarkdown = [
-      `- **[${timestamp}]** ${focusNoteLink} for ${cycleCount} cycles`
+      `# **[${timestamp}]** ${focusNoteLink} for ${cycleCount} cycles`
     ];
+    sessionMarkdown.push("## Session overview");
     console.log(initialQuestions);
     for (let i = 0; i < initialQuestions.length; i++) {
       sessionMarkdown.push(
-        `  - **${initialQuestions[i]}**`
+        `- **${options.initialQuestions[i]}**`
       );
       let answer = initialQuestions[i];
-      sessionMarkdown.push(`    - ${answer}`);
+      sessionMarkdown.push(`  - ${answer}`);
     }
     await _appendToNote(app, sessionMarkdown.join("\n"));
   }
@@ -537,6 +538,10 @@ ${dataRows}`;
     tableDict = await _appendToTopTableCell(tableDict, "Energy Logs", energy);
     tableDict = await _appendToTopTableCell(tableDict, "Morale Logs", morale);
     await writeDashboard(app, options, dash, tableDict);
+    await _appendToNote(app, `
+## Cycles`);
+    await _appendToNote(app, `
+### Cycle 1`);
     for (let i = firstCycle; i < cycles; i++) {
       const workEndTime = new Date(startTime.getTime() + options.workDuration);
       const breakEndTime = new Date(workEndTime.getTime() + options.breakDuration);
@@ -584,12 +589,15 @@ ${dataRows}`;
     }
   }
   async function _handleBreakPhase(app, options, dash, focusNote, workEndTime, breakEndTime, cycleIndex, cycles) {
-    await _appendToNote(app, `- Cycle ${cycleIndex + 1} debrief:`);
+    await _appendToNote(app, "\n- Debrief:");
     let dashTable = await _readDasbhoard(app, dash);
     dashTable = _editTopTableCell(dashTable, "Cycle Progress", cycleIndex + 1);
     await writeDashboard(app, options, dash, dashTable);
     if (cycleIndex < cycles - 1) {
-      await _appendToNote(app, `- Cycle ${cycleIndex + 2} plan:`);
+      await _appendToNote(app, `
+### Cycle ${cycleIndex + 2}`);
+      await _appendToNote(app, `
+- Plan:`);
       console.log(`Cycle ${cycleIndex + 1}: Starting break phase...`);
       const breakInterval = setInterval(() => {
         _logRemainingTime(app, focusNote, breakEndTime, "break", cycleIndex);
@@ -604,7 +612,8 @@ ${dataRows}`;
       app.alert(`Cycle ${cycleIndex + 1}: Break phase completed. Start working!`);
       console.log(`Cycle ${cycleIndex + 1}: Break phase completed.`);
     } else {
-      await _appendToNote(app, `- Session debrief:`);
+      await _appendToNote(app, `
+## Session debrief`);
       console.log(`Session complete.`);
       app.alert(`Session complete. Debrief and relax.`);
     }
