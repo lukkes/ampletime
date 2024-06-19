@@ -250,7 +250,7 @@ describe("within a test environment", () => {
             });
 
             //----------------------------------------------------------------------------------------------------------
-            it("should create the dashboard and the first  entry", async () => {
+            it("should create the dashboard and the first  entry; it should log all session details", async () => {
                 const jot = await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
                 app.context.noteUUID = "1";
                 let cycleCount = 5;
@@ -260,12 +260,43 @@ describe("within a test environment", () => {
 | ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
 | [June 12th, 2024](https://www.amplenote.com/notes/1) |`;
                 let expectedRowMatch = /\|.*\|.*\| 5 \| 5 \| .* \|/;
-                await plugin.insertText["Start Focus"](app);
-                // await expect(plugin.insertText["Start Focus"](app)).resolves.not.toThrow();
-                // await _focus(app, plugin.options.amplefocus, new Date(), cycleCount);
-                // await expect(_focus(app, plugin.options.amplefocus, new Date(), cycleCount)).resolves.not.toThrow();
+                // await plugin.insertText["Start Focus"](app);
+                await expect(plugin.insertText["Start Focus"](app)).resolves.not.toThrow();
                 expect(app._noteRegistry["2"].body).toContain(expectedDash);
                 expect(app._noteRegistry["2"].body).toMatch(expectedRowMatch);
+
+                // Test daily jot contents for session details
+                let expectedJot = `[Focus Dashboard](https://www.amplenote.com/notes/2) for ${cycleCount} cycles
+## Session overview
+- **What am I trying to accomplish?**
+  - 1
+- **Why is this important and valuable?**
+  - 2
+- **How will I know this is complete?**
+  - 3
+- **Potential distractions? How am I going to deal with them?**
+  - 4
+- **Is this concrete/measurable or subjective/ambiguous?**
+  - 5
+- **Anything else noteworthy?**
+  - 6
+## Cycles
+### Cycle 1
+- Debrief:
+### Cycle 2
+- Plan:
+- Debrief:
+### Cycle 3
+- Plan:
+- Debrief:
+### Cycle 4
+- Plan:
+- Debrief:
+### Cycle 5
+- Plan:
+- Debrief:
+## Session debrief`;
+                expect(app._noteRegistry["1"].body).toContain(expectedJot);
             })
         })
 
