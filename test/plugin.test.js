@@ -6,6 +6,7 @@
 import {mockApp, mockNote, mockPlugin, mockPrompter, mockTask} from "../lib/test-helpers.js";
 import {_getISOStringFromDate} from "../lib/ampletime/date-time.js"
 import {_generateReport, _start, _stop} from "../lib/ampletime/ampletime.js";
+import {starting} from "../lib/amplefocus/amplefocus.js";
 
 describe("within a test environment", () => {
     let app, plugin, target, dash, expectedDash;
@@ -305,6 +306,76 @@ describe("within a test environment", () => {
                 expect(app._noteRegistry["2"].body).toContain(expectedDash);
                 expect(app._noteRegistry["2"].body).toMatch(expectedRowMatch);
                 expect(app._noteRegistry["2"].body.split("\n")[5]).toMatch(/^$/);
+            })
+
+            describe("with longer durations", () => {
+                // TODO: find  a way to test this, maybe with some fake jest timers? Unsure how to mock the _handle functions though
+                beforeEach(() => {
+                    plugin.options.amplefocus.workDuration = 10 * 1000;
+                    plugin.options.amplefocus.breakDuration = 0.05 * 1000;
+                    let startTime = new Date();
+                    plugin.options.amplefocus.mockPrompter = mockPrompter([
+                        startTime.getTime(),
+                        {index: 3}, // This means 5 cycles
+                        ["1", "2", "3", "4", "5", "6"],
+                        [1, 3], [2, 2], [3, 3], [3, 3], [1, 3],
+                        // startTime,
+                        // _generateCycleOptions(startTime, plugin.options.amplefocus)[3].value, // Should be "5"
+                    ]);
+                })
+
+                //----------------------------------------------------------------------------------------------------------
+                it("should pause a session", async () => {
+                    const jot = await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
+                    app.context.noteUUID = "1";
+                    await app.createNote(plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard], "", "2");
+                    let expectedRowMatch = /\|.*\|.*\| 5 \| 0 \| 1 \| 3 \|  \|/;
+                    // await Promise.race([plugin.insertText["Start Focus"](app), plugin.appOption["Pause Focus"](app)]);
+                    let runPromise = plugin.insertText["Start Focus"](app);
+                    runPromise.then(() => console.log("yes")).catch(() => console.log("no"));
+                    console.log("11111");
+                    await starting;
+                    console.log("22222");
+                    await plugin.appOption["Pause Focus"](app);
+                    console.log("3333");
+
+                    expect(app._noteRegistry["2"].body).toMatch(expectedRowMatch);
+                })
+
+                //----------------------------------------------------------------------------------------------------------
+                it("should cancel a session", async () => {
+                    const jot = await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
+                    app.context.noteUUID = "1";
+                    await app.createNote(plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard], "", "2");
+                    let expectedRowMatch = /\|.*\|.*\| 5 \| 0 \| 1 \| 3 \| .+ \|/;
+                    // await Promise.race([plugin.insertText["Start Focus"](app), plugin.appOption["Pause Focus"](app)]);
+                    let runPromise = plugin.insertText["Start Focus"](app);
+                    runPromise.then(() => console.log("yes")).catch(() => console.log("no"));
+                    console.log("11111");
+                    await starting;
+                    console.log("22222");
+                    await plugin.appOption["Cancel Focus"].bind(plugin)(app);
+                    console.log("3333");
+
+                    expect(app._noteRegistry["2"].body).toMatch(expectedRowMatch);
+                })
+
+                //----------------------------------------------------------------------------------------------------------
+                it("should cancel a paused session", async () => {
+                    const jot = await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
+                    app.context.noteUUID = "1";
+                    await app.createNote(plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard], "", "2");
+                    let expectedRowMatch = /\|.*\|.*\| 5 \| 0 \| 1 \| 3 \| .+ \|/;
+                    // await Promise.race([plugin.insertText["Start Focus"](app), plugin.appOption["Pause Focus"](app)]);
+                    let runPromise = plugin.insertText["Start Focus"](app);
+                    runPromise.then(() => console.log("yes")).catch(() => console.log("no"));
+                    await starting;
+                    await plugin.appOption["Pause Focus"](app);
+                    await plugin.appOption["Cancel Focus"].bind(plugin)(app);
+
+                    expect(app._noteRegistry["2"].body).toMatch(expectedRowMatch);
+                })
+
             })
         })
 
