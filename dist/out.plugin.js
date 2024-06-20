@@ -261,6 +261,83 @@ ${dataRows}`;
     return true;
   }
 
+  // lib/amplefocus/logWriter.js
+  var sessionHeading;
+  var sessionNoteUUID;
+  function markAddress(heading, uuid) {
+    sessionHeading = heading;
+    sessionNoteUUID = uuid;
+  }
+  async function appendToSession(app, content) {
+    let noteContent = await app.getNoteContent({ uuid: sessionNoteUUID });
+    let heading = await _getSessionSubHeading(app, sessionHeading);
+    if (!heading)
+      throw "Heading not found";
+    let headingContent = await _sectionContent(noteContent, heading);
+    await app.replaceNoteContent({ uuid: sessionNoteUUID }, headingContent + content, { section: heading });
+  }
+  async function appendToHeading(app, headingName, content) {
+    let noteContent = await app.getNoteContent({ uuid: sessionNoteUUID });
+    let cycleHeading = await _getSessionSubHeading(app, headingName);
+    if (!cycleHeading)
+      throw new Error("Expected heading for this cycle but couldn't find one.");
+    let cycleHeadingContent = await _sectionContent(noteContent, cycleHeading);
+    await app.replaceNoteContent({ uuid: sessionNoteUUID }, cycleHeadingContent + content, { section: cycleHeading });
+  }
+  function _sectionContent(noteContent, headingTextOrSectionObject) {
+    console.debug(`_sectionContent()`);
+    let sectionHeadingText;
+    if (typeof headingTextOrSectionObject === "string") {
+      sectionHeadingText = headingTextOrSectionObject;
+    } else {
+      sectionHeadingText = headingTextOrSectionObject.heading.text;
+    }
+    try {
+      sectionHeadingText = sectionHeadingText.replace(/^#+\s*/, "");
+    } catch (err) {
+      if (err.name === "TypeError") {
+        throw new Error(`${err.message} (line 1054)`);
+      }
+    }
+    const { startIndex, endIndex } = _sectionRange(noteContent, sectionHeadingText);
+    return noteContent.slice(startIndex, endIndex);
+  }
+  function _sectionRange(bodyContent, sectionHeadingText) {
+    console.debug(`_sectionRange`);
+    const sectionRegex = /^#+\s*([^#\n\r]+)/gm;
+    const indexes = Array.from(bodyContent.matchAll(sectionRegex));
+    const sectionMatch = indexes.find((m) => m[1].trim() === sectionHeadingText.trim());
+    if (!sectionMatch) {
+      console.error("Could not find section", sectionHeadingText, "that was looked up. This might be expected");
+      return { startIndex: null, endIndex: null };
+    } else {
+      const level = sectionMatch[0].match(/^#+/)[0].length;
+      const nextMatch = indexes.find((m) => m.index > sectionMatch.index && m[0].match(/^#+/)[0].length <= level);
+      const endIndex = nextMatch ? nextMatch.index : bodyContent.length;
+      return { startIndex: sectionMatch.index + sectionMatch[0].length + 1, endIndex };
+    }
+  }
+  async function _getSessionSubHeading(app, sectionName) {
+    let note = await app.findNote({ uuid: sessionNoteUUID });
+    let sections = await app.getNoteSections(note);
+    let mainSectionIndex = sections.findIndex((section) => section.heading.text === sessionHeading);
+    sections = sections.slice(mainSectionIndex, sections.length);
+    let nextSectionIndex = sections.slice(1).findIndex((section) => section.heading.level <= 1);
+    if (nextSectionIndex === -1)
+      nextSectionIndex = sections.length;
+    sections = sections.slice(0, nextSectionIndex + 1);
+    for (let section of sections) {
+      if (section.heading.text === sectionName)
+        return section;
+    }
+  }
+  async function _appendToNote(app, contents, targetNoteUUID = null) {
+    if (!targetNoteUUID) {
+      targetNoteUUID = app.context.noteUUID;
+    }
+    await app.insertNoteContent({ uuid: targetNoteUUID }, contents, { atEnd: true });
+  }
+
   // lib/amplefocus/amplefocus.js
   var state;
   function changeState(newState) {
@@ -332,7 +409,7 @@ ${dataRows}`;
       if (result === "resume") {
         console.log("Continuing previous uncompleted session.");
         let startTime = await _promptStartTime(app);
-        await _startSession(app, options, dash, startTime, isSessionRunning["Cycle Count"], Number(isSessionRunning["Cycle Progress"]));
+        await _startSession(app, options, dash, startTime, isSessionRunning["Cycle Count"], Number(isSessionRunning["Cycle Progress"]) + 1, isSessionRunning["Start Time"]);
         return false;
       } else if (result === "abandon") {
         console.log(`Stopping current task...`);
@@ -412,19 +489,21 @@ ${dataRows}`;
     console.log(initialQuestions);
     return initialQuestions || [];
   }
-  async function _insertSessionOverview(app, options, startTime, cycleCount, initialQuestions) {
+  async function _makeSessionHeading(app, timestamp, cycleCount) {
     const focusNote = await _getFocusNote(app);
     const focusNoteLink = _formatNoteLink(focusNote.name, focusNote.uuid);
-    const timestamp = (/* @__PURE__ */ new Date()).toLocaleTimeString(
+    return `# **[${timestamp}]** ${focusNoteLink} for ${cycleCount} cycles`;
+  }
+  async function _insertSessionOverview(app, options, startTime, cycleCount, initialQuestions) {
+    const timestamp = startTime.toLocaleTimeString(
       void 0,
       { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }
     );
-    const sessionMarkdown = [
-      `# **[${timestamp}]** ${focusNoteLink} for ${cycleCount} cycles`
-    ];
+    let sessionHeadingText = await _makeSessionHeading(app, timestamp, cycleCount);
+    let sessionMarkdown = [sessionHeadingText];
     sessionMarkdown.push("## Session overview");
     console.log(initialQuestions);
-    for (let i = 0; i < initialQuestions.length; i++) {
+    for (let i = 0; i < options.initialQuestions.length; i++) {
       sessionMarkdown.push(
         `- **${options.initialQuestions[i]}**`
       );
@@ -432,12 +511,6 @@ ${dataRows}`;
       sessionMarkdown.push(`  - ${answer}`);
     }
     await _appendToNote(app, sessionMarkdown.join("\n"));
-  }
-  async function _appendToNote(app, contents, targetNoteUUID = null) {
-    if (!targetNoteUUID) {
-      targetNoteUUID = app.context.noteUUID;
-    }
-    await app.insertNoteContent({ uuid: targetNoteUUID }, contents, { atEnd: true });
   }
   function _formatNoteLink(name, uuid) {
     return `[${name}](https://www.amplenote.com/notes/${uuid})`;
@@ -528,33 +601,49 @@ ${dataRows}`;
       morale = 0;
     return [energy, morale];
   }
-  async function _startSession(app, options, dash, startTime, cycles, firstCycle) {
+  async function _startSession(app, options, dash, startTime, cycles, firstCycle, existingSessionStartTime = null) {
     console.log("Starting focus cycle...");
     const focusNote = await _getFocusNote(app);
     if (!firstCycle)
-      firstCycle = 0;
-    let [energy, morale] = await _promptEnergyMorale(app, "It's time to plan the next 30 minutes. How are your energy and morale levels right now?");
-    let tableDict = await _readDasbhoard(app, dash);
-    tableDict = await _appendToTopTableCell(tableDict, "Energy Logs", energy);
-    tableDict = await _appendToTopTableCell(tableDict, "Morale Logs", morale);
-    await writeDashboard(app, options, dash, tableDict);
-    await _appendToNote(app, `
-## Cycles`);
-    await _appendToNote(app, `
-### Cycle 1`);
-    for (let i = firstCycle; i < cycles; i++) {
-      const workEndTime = new Date(startTime.getTime() + options.workDuration);
-      const breakEndTime = new Date(workEndTime.getTime() + options.breakDuration);
+      firstCycle = 1;
+    let sessionHeadingName = "";
+    if (existingSessionStartTime) {
+      let hoursMinutes = existingSessionStartTime.slice(11, 16);
+      let note = await app.findNote({ uuid: app.context.noteUUID });
+      let sections = await app.getNoteSections(note);
+      let sessionHeading2 = sections.filter(
+        (section) => section.heading.text.includes(`[${hoursMinutes}`)
+      );
+      sessionHeadingName = sessionHeading2[0].heading.text;
+    } else {
+      const timestamp = startTime.toLocaleTimeString(
+        void 0,
+        { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }
+      );
+      sessionHeadingName = await _makeSessionHeading(app, timestamp, cycles);
+      sessionHeadingName = sessionHeadingName.slice(2);
+    }
+    markAddress(sessionHeadingName, app.context.noteUUID);
+    if (firstCycle === 1)
+      await appendToSession(app, "\n## Cycles");
+    let breakEndTime = startTime;
+    let workEndTime;
+    workEndTime = new Date(breakEndTime.getTime() + options.workDuration);
+    for (let i = firstCycle - 1; i <= cycles; i++) {
       try {
-        await _handleWorkPhase(app, options, dash, focusNote, workEndTime, i, cycles);
-        await _handleBreakPhase(app, options, dash, focusNote, workEndTime, breakEndTime, i, cycles);
+        if (i >= 1)
+          await _handleWorkPhase(app, options, dash, focusNote, workEndTime, i, cycles);
+        await _handleBreakPhase(app, options, dash, focusNote, breakEndTime, i, cycles);
       } catch (error) {
         if (error.name === "AbortError") {
           console.log("Session canceled");
           break;
+        } else {
+          throw error;
         }
       }
-      startTime = breakEndTime;
+      workEndTime = new Date(breakEndTime.getTime() + options.workDuration);
+      breakEndTime = new Date(workEndTime.getTime() + options.breakDuration);
     }
     if (state !== "PAUSED") {
       await _writeEndTime(app, options, dash);
@@ -569,7 +658,7 @@ ${dataRows}`;
     await writeDashboard(app, options, dash, dashTable);
   }
   async function _handleWorkPhase(app, options, dash, focusNote, workEndTime, cycleIndex, cycles) {
-    console.log(`Cycle ${cycleIndex + 1}: Starting work phase...`);
+    console.log(`Cycle ${cycleIndex}: Starting work phase...`);
     const workInterval = setInterval(() => {
       _logRemainingTime(app, options, focusNote, workEndTime, "work", cycleIndex);
     }, options.updateInterval);
@@ -580,27 +669,30 @@ ${dataRows}`;
       throw error;
     }
     clearInterval(workInterval);
-    if (cycleIndex < cycles - 1) {
+  }
+  async function _handleBreakPhase(app, options, dash, focusNote, breakEndTime, cycleIndex, cycles) {
+    let currentCycle, nextCycle;
+    currentCycle = cycleIndex;
+    nextCycle = cycleIndex + 1;
+    if (currentCycle >= 1) {
+      await appendToHeading(app, `Cycle ${currentCycle}`, "\n- Debrief:");
+      let dashTable = await _readDasbhoard(app, dash);
+      dashTable = _editTopTableCell(dashTable, "Cycle Progress", currentCycle);
+      await writeDashboard(app, options, dash, dashTable);
+    }
+    if (currentCycle < cycles) {
+      await appendToHeading(app, `Cycles`, `
+### Cycle ${nextCycle}`);
+      await appendToHeading(app, `Cycle ${nextCycle}`, `
+- Plan:`);
       let [energy, morale] = await _promptEnergyMorale(app, "Work phase completed. It's time to plan the next cycle. How are your energy and morale levels right now?");
       let tableDict = await _readDasbhoard(app, dash);
       tableDict = await _appendToTopTableCell(tableDict, "Energy Logs", energy);
       tableDict = await _appendToTopTableCell(tableDict, "Morale Logs", morale);
       await writeDashboard(app, options, dash, tableDict);
-    }
-  }
-  async function _handleBreakPhase(app, options, dash, focusNote, workEndTime, breakEndTime, cycleIndex, cycles) {
-    await _appendToNote(app, "\n- Debrief:");
-    let dashTable = await _readDasbhoard(app, dash);
-    dashTable = _editTopTableCell(dashTable, "Cycle Progress", cycleIndex + 1);
-    await writeDashboard(app, options, dash, dashTable);
-    if (cycleIndex < cycles - 1) {
-      await _appendToNote(app, `
-### Cycle ${cycleIndex + 2}`);
-      await _appendToNote(app, `
-- Plan:`);
-      console.log(`Cycle ${cycleIndex + 1}: Starting break phase...`);
+      console.log(`Cycle ${currentCycle}: Starting break phase...`);
       const breakInterval = setInterval(() => {
-        _logRemainingTime(app, focusNote, breakEndTime, "break", cycleIndex);
+        _logRemainingTime(app, focusNote, breakEndTime, "break", currentCycle);
       }, options.updateInterval);
       try {
         await _sleepUntil(breakEndTime);
@@ -609,10 +701,10 @@ ${dataRows}`;
         throw error;
       }
       clearInterval(breakInterval);
-      app.alert(`Cycle ${cycleIndex + 1}: Break phase completed. Start working!`);
-      console.log(`Cycle ${cycleIndex + 1}: Break phase completed.`);
+      app.alert(`Cycle ${currentCycle}: Break phase completed. Start working!`);
+      console.log(`Cycle ${currentCycle}: Break phase completed.`);
     } else {
-      await _appendToNote(app, `
+      await appendToSession(app, `
 ## Session debrief`);
       console.log(`Session complete.`);
       app.alert(`Session complete. Debrief and relax.`);
