@@ -499,24 +499,100 @@ describe("within a test environment", () => {
 
                 //----------------------------------------------------------------------------------------------------------
                 it("should resume the open session and leave the table intact", async () =>  {
-                        const jot = await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
-                        app.context.noteUUID = "1";
-                        let cycleCount = 5;
-                        await app.createNote(plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard], dashContents, "2");
-                        let expectedDash = `## ${plugin.options.amplefocus.sectionTitleDashboardEntries}
+                    const jotContents = `# **[16:14:36]** [Focus Dashboard](https://www.amplenote.com/notes/2) for 5 cycles
+                    
+## Session overview
+- **What am I trying to accomplish?**
+  - 1
+- **Why is this important and valuable?**
+  - 2
+- **How will I know this is complete?**
+  - 3
+- **Potential distractions? How am I going to deal with them?**
+  - 4
+- **Is this concrete/measurable or subjective/ambiguous?**
+  - 5
+- **Anything else noteworthy?**
+  - 6
+  
+## Cycles
+
+### Cycle 1
+- Debrief:
+
+### Cycle 2
+- Plan:
+
+# This is an unrelated section
+And this is some content
+
+### Cycle 4
+But please don't write here`;
+                    const expectedJotContents = `# **[16:14:36]** [Focus Dashboard](https://www.amplenote.com/notes/2) for 5 cycles
+## Session overview
+- **What am I trying to accomplish?**
+  - 1
+- **Why is this important and valuable?**
+  - 2
+- **How will I know this is complete?**
+  - 3
+- **Potential distractions? How am I going to deal with them?**
+  - 4
+- **Is this concrete/measurable or subjective/ambiguous?**
+  - 5
+- **Anything else noteworthy?**
+  - 6
+  
+## Cycles
+### Cycle 1
+- Debrief:
+
+### Cycle 2
+- Plan:
+
+
+- Debrief:
+
+### Cycle 3
+- Plan:
+
+- Debrief:
+
+### Cycle 4
+- Plan:
+
+- Debrief:
+
+### Cycle 5
+- Plan:
+
+- Debrief:
+
+## Session debrief
+# This is an unrelated section
+And this is some content
+
+### Cycle 4
+But please don't write here`;
+                    const jot = await app.createNote("June 12th, 2024", ["daily-jots"], jotContents, "1");
+                    app.context.noteUUID = "1";
+                    let cycleCount = 5;
+                    await app.createNote(plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard], dashContents, "2");
+                    let expectedDash = `## ${plugin.options.amplefocus.sectionTitleDashboardEntries}
 |${" |".repeat(plugin.options.amplefocus.dashboardColumns.length)}
 |${"-|".repeat(plugin.options.amplefocus.dashboardColumns.length)}
 | ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
 | [June 12th, 2024](https://www.amplenote.com/notes/1) |`;
-                        let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 3,3,1 \| 3,3,3 \| .* \|/;
-                        // await plugin.insertText["Start Focus"](app);
-                        await expect(plugin.insertText["Start Focus"](app)).resolves.not.toThrow();
-                        // await _focus(app, plugin.options.amplefocus, new Date(), cycleCount);
-                        // await expect(_focus(app, plugin.options.amplefocus, new Date(), cycleCount)).resolves.not.toThrow();
-                        expect(app._noteRegistry["2"].body).toContain(expectedDash);
-                        expect(app._noteRegistry["2"].body.split("\n")[4]).toMatch(expectedRowMatch2);
-                        expect(app._noteRegistry["2"].body.split("\n").length).toBe(6);
-                        // expect(app._noteRegistry["2"].body.split("\n")[5]).toMatch(/^$/);
+                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 3,3,1 \| 3,3,3 \| .* \|/;
+                    await plugin.insertText["Start Focus"](app);
+                    // await expect(plugin.insertText["Start Focus"](app)).resolves.not.toThrow();
+                    // await _focus(app, plugin.options.amplefocus, new Date(), cycleCount);
+                    // await expect(_focus(app, plugin.options.amplefocus, new Date(), cycleCount)).resolves.not.toThrow();
+                    expect(app._noteRegistry["2"].body).toContain(expectedDash);
+                    expect(app._noteRegistry["2"].body.split("\n")[4]).toMatch(expectedRowMatch2);
+                    expect(app._noteRegistry["2"].body.split("\n").length).toBe(6);
+                    // expect(app._noteRegistry["2"].body.split("\n")[5]).toMatch(/^$/);
+                    expect(app._noteRegistry["1"].body).toContain(expectedJotContents);
                     }
                 )
             })
