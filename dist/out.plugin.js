@@ -261,6 +261,43 @@ ${dataRows}`;
     return true;
   }
 
+  // lib/test-helpers-markdown.js
+  function stripMarkdownFormatting(markdown) {
+    let plainText = markdown.replace(/(\*\*|__)(.*?)\1/g, "$2");
+    plainText = plainText.replace(/(\*|_)(.*?)\1/g, "$2");
+    plainText = plainText.replace(/\[([^\]]+)\]\([^\)]+\)/g, "$1");
+    plainText = plainText.replace(/`([^`]+)`/g, "$1");
+    plainText = plainText.replace(/!\[([^\]]*)\]\([^\)]+\)/g, "$1");
+    plainText = plainText.replace(/^#{1,6}\s*/gm, "");
+    plainText = plainText.replace(/^-{3,}$/gm, "");
+    plainText = plainText.replace(/^\s*>+\s?/gm, "");
+    plainText = plainText.replace(/^\s*([-+*]|\d+\.)\s+/gm, "");
+    plainText = plainText.replace(/```[\s\S]*?```/g, "");
+    plainText = plainText.replace(/<\/?[^>]+(>|$)/g, "");
+    plainText = plainText.replace(/\\\[([^\]]+?)\\\]/g, "[$1]");
+    return plainText.trim();
+  }
+  function _sectionRange(bodyContent, sectionHeadingText) {
+    console.debug(`_sectionRange`);
+    const sectionRegex = /^#+\s*([^#\n\r]+)/gm;
+    let indexes = Array.from(bodyContent.matchAll(sectionRegex));
+    indexes = indexes.map((index) => {
+      let newIndex = index;
+      newIndex[1] = stripMarkdownFormatting(newIndex[1]);
+      return newIndex;
+    });
+    const sectionMatch = indexes.find((m) => m[1].trim() === sectionHeadingText.trim());
+    if (!sectionMatch) {
+      console.error("Could not find section", sectionHeadingText, "that was looked up. This might be expected");
+      return { startIndex: null, endIndex: null };
+    } else {
+      const level = sectionMatch[0].match(/^#+/)[0].length;
+      const nextMatch = indexes.find((m) => m.index > sectionMatch.index && m[0].match(/^#+/)[0].length <= level);
+      const endIndex = nextMatch ? nextMatch.index : bodyContent.length;
+      return { startIndex: sectionMatch.index + sectionMatch[0].length + 1, endIndex };
+    }
+  }
+
   // lib/amplefocus/logWriter.js
   var sessionHeading;
   var sessionNoteUUID;
@@ -270,9 +307,12 @@ ${dataRows}`;
   }
   async function appendToSession(app, content) {
     let noteContent = await app.getNoteContent({ uuid: sessionNoteUUID });
-    let heading = await _getSessionSubHeading(app, sessionHeading);
-    if (!heading)
+    let heading = await _getSessionSubHeading(app, stripMarkdownFormatting(sessionHeading));
+    if (!heading) {
+      console.log(sessionHeading);
+      console.log(noteContent);
       throw "Heading not found";
+    }
     let headingContent = await _sectionContent(noteContent, heading);
     await app.replaceNoteContent({ uuid: sessionNoteUUID }, headingContent + content, { section: heading });
   }
@@ -302,32 +342,18 @@ ${dataRows}`;
     const { startIndex, endIndex } = _sectionRange(noteContent, sectionHeadingText);
     return noteContent.slice(startIndex, endIndex);
   }
-  function _sectionRange(bodyContent, sectionHeadingText) {
-    console.debug(`_sectionRange`);
-    const sectionRegex = /^#+\s*([^#\n\r]+)/gm;
-    const indexes = Array.from(bodyContent.matchAll(sectionRegex));
-    const sectionMatch = indexes.find((m) => m[1].trim() === sectionHeadingText.trim());
-    if (!sectionMatch) {
-      console.error("Could not find section", sectionHeadingText, "that was looked up. This might be expected");
-      return { startIndex: null, endIndex: null };
-    } else {
-      const level = sectionMatch[0].match(/^#+/)[0].length;
-      const nextMatch = indexes.find((m) => m.index > sectionMatch.index && m[0].match(/^#+/)[0].length <= level);
-      const endIndex = nextMatch ? nextMatch.index : bodyContent.length;
-      return { startIndex: sectionMatch.index + sectionMatch[0].length + 1, endIndex };
-    }
-  }
   async function _getSessionSubHeading(app, sectionName) {
     let note = await app.findNote({ uuid: sessionNoteUUID });
     let sections = await app.getNoteSections(note);
-    let mainSectionIndex = sections.findIndex((section) => section.heading.text === sessionHeading);
+    console.log(sections);
+    let mainSectionIndex = sections.findIndex((section) => section?.heading?.text.includes(stripMarkdownFormatting(sessionHeading)));
     sections = sections.slice(mainSectionIndex, sections.length);
-    let nextSectionIndex = sections.slice(1).findIndex((section) => section.heading.level <= 1);
+    let nextSectionIndex = sections.slice(1).findIndex((section) => section?.heading?.level <= 1);
     if (nextSectionIndex === -1)
       nextSectionIndex = sections.length;
     sections = sections.slice(0, nextSectionIndex + 1);
     for (let section of sections) {
-      if (section.heading.text === sectionName)
+      if (section?.heading?.text === sectionName)
         return section;
     }
   }
@@ -492,7 +518,7 @@ ${dataRows}`;
   async function _makeSessionHeading(app, timestamp, cycleCount) {
     const focusNote = await _getFocusNote(app);
     const focusNoteLink = _formatNoteLink(focusNote.name, focusNote.uuid);
-    return `# **[${timestamp}]** ${focusNoteLink} for ${cycleCount} cycles`;
+    return `# **\\[${timestamp}\\]** ${focusNoteLink} for ${cycleCount} cycles`;
   }
   async function _insertSessionOverview(app, options, startTime, cycleCount, initialQuestions) {
     const timestamp = startTime.toLocaleTimeString(
@@ -510,7 +536,7 @@ ${dataRows}`;
       let answer = initialQuestions[i];
       sessionMarkdown.push(`  - ${answer}`);
     }
-    await _appendToNote(app, sessionMarkdown.join("\n"));
+    await _appendToNote(app, "\n" + sessionMarkdown.join("\n"));
   }
   function _formatNoteLink(name, uuid) {
     return `[${name}](https://www.amplenote.com/notes/${uuid})`;
@@ -612,7 +638,7 @@ ${dataRows}`;
       let note = await app.findNote({ uuid: app.context.noteUUID });
       let sections = await app.getNoteSections(note);
       let sessionHeading2 = sections.filter(
-        (section) => section.heading.text.includes(`[${hoursMinutes}`)
+        (section) => section?.heading?.text.includes(`[${hoursMinutes}`)
       );
       sessionHeadingName = sessionHeading2[0].heading.text;
     } else {
@@ -1332,9 +1358,9 @@ ${progressBar}
           // Comma-separated values (1-3)
           "End Time"
         ],
-        workDuration: 30 * 60 * 1e3,
+        workDuration: 30 * 1e3,
         // ms
-        breakDuration: 10 * 60 * 1e3,
+        breakDuration: 10 * 1e3,
         // ms
         updateInterval: 10 * 1e3,
         // ms
