@@ -282,20 +282,32 @@ describe("within a test environment", () => {
   - 6
 ## Cycles
 ### Cycle 1
+- Plan:
+
 - Debrief:
+
 ### Cycle 2
 - Plan:
+
 - Debrief:
+
 ### Cycle 3
 - Plan:
+
 - Debrief:
+
 ### Cycle 4
 - Plan:
+
 - Debrief:
+
 ### Cycle 5
 - Plan:
+
 - Debrief:
-## Session debrief`;
+
+## Session debrief
+`;
                 expect(app._noteRegistry["1"].body).toContain(expectedJot);
             })
         })
@@ -421,7 +433,7 @@ describe("within a test environment", () => {
 |${" |".repeat(plugin.options.amplefocus.dashboardColumns.length)}
 |${"-|".repeat(plugin.options.amplefocus.dashboardColumns.length)}
 | ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
-| [June 12th, 2024](https://www.amplenote.com/notes/1) | some date | 5 | 2 |  |`;
+| [June 12th, 2024](https://www.amplenote.com/notes/1) | 2024-06-19T16:14:36.532 | 5 | 2 |  |`;
             })
 
             describe("if the user abandons open session", () => {
