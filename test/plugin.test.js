@@ -331,7 +331,7 @@ describe("within a test environment", () => {
 
             //----------------------------------------------------------------------------------------------------------
             it("should create a new entry in the dashboard", async () => {
-                const jot = await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
+                const jot = await app.createNote("June 12th, 2024", ["daily-jots"], "{AmpleFocus:Start}", "1");
                 app.context.noteUUID = "1";
                 let cycleCount = 5;
                 await app.createNote(plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard], "", "2");
@@ -340,6 +340,48 @@ describe("within a test environment", () => {
 |${"-|".repeat(plugin.options.amplefocus.dashboardColumns.length)}
 | ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
 | [June 12th, 2024](https://www.amplenote.com/notes/1) |`;
+                const expectedJotContents = `[Focus Dashboard](https://www.amplenote.com/notes/2) for 5 cycles
+## Session overview
+- **What am I trying to accomplish?**
+  - 1
+- **Why is this important and valuable?**
+  - 2
+- **How will I know this is complete?**
+  - 3
+- **Potential distractions? How am I going to deal with them?**
+  - 4
+- **Is this concrete/measurable or subjective/ambiguous?**
+  - 5
+- **Anything else noteworthy?**
+  - 6
+## Cycles
+### Cycle 1
+- Plan:
+
+- Debrief:
+
+### Cycle 2
+- Plan:
+
+- Debrief:
+
+### Cycle 3
+- Plan:
+
+- Debrief:
+
+### Cycle 4
+- Plan:
+
+- Debrief:
+
+### Cycle 5
+- Plan:
+
+- Debrief:
+
+## Session debrief
+`;
                 let expectedRowMatch = /\|.*\|.*\| 5 \| 5 \| .* \|/;
                 // await plugin.insertText["Start Focus"](app);
                 await expect(plugin.insertText["Start Focus"](app)).resolves.not.toThrow();
@@ -349,6 +391,7 @@ describe("within a test environment", () => {
                 expect(app._noteRegistry["2"].body).toContain(expectedDash);
                 expect(app._noteRegistry["2"].body).toMatch(expectedRowMatch);
                 expect(app._noteRegistry["2"].body.split("\n")[5]).toMatch(/^$/);
+                expect(app._noteRegistry["1"].body).toContain(expectedJotContents);
             })
 
             describe("with longer durations", () => {
@@ -499,7 +542,8 @@ describe("within a test environment", () => {
 
                 //----------------------------------------------------------------------------------------------------------
                 it("should resume the open session and leave the table intact", async () =>  {
-                    const jotContents = `# **[16:14:36]** [Focus Dashboard](https://www.amplenote.com/notes/2) for 5 cycles
+                    const jotContents = `Some unrelated text
+# **\\[16:14:36\\]** [Focus Dashboard](https://www.amplenote.com/notes/2) for 5 cycles
                     
 ## Session overview
 - **What am I trying to accomplish?**
@@ -526,9 +570,12 @@ describe("within a test environment", () => {
 # This is an unrelated section
 And this is some content
 
+---
+This is some text without a heading per se
+
 ### Cycle 4
 But please don't write here`;
-                    const expectedJotContents = `# **[16:14:36]** [Focus Dashboard](https://www.amplenote.com/notes/2) for 5 cycles
+                    const expectedJotContents = `# **\\[16:14:36\\]** [Focus Dashboard](https://www.amplenote.com/notes/2) for 5 cycles
 ## Session overview
 - **What am I trying to accomplish?**
   - 1
@@ -571,6 +618,9 @@ But please don't write here`;
 ## Session debrief
 # This is an unrelated section
 And this is some content
+
+---
+This is some text without a heading per se
 
 ### Cycle 4
 But please don't write here`;
