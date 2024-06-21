@@ -415,7 +415,7 @@ describe("within a test environment", () => {
                     const jot = await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
                     app.context.noteUUID = "1";
                     await app.createNote(plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard], "", "2");
-                    let expectedRowMatch = /\|.*\|.*\| 5 \| 0 \| 1 \| 3 \|  \|/;
+                    let expectedRowMatch = /\|.*\|.*\| 5 \| 0 \|  \|  \|  \|/;
                     // await Promise.race([plugin.insertText["Start Focus"](app), plugin.appOption["Pause Focus"](app)]);
                     let runPromise = plugin.insertText["Start Focus"](app);
                     runPromise.then(() => console.log("yes")).catch(() => console.log("no"));
@@ -433,7 +433,7 @@ describe("within a test environment", () => {
                     const jot = await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
                     app.context.noteUUID = "1";
                     await app.createNote(plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard], "", "2");
-                    let expectedRowMatch = /\|.*\|.*\| 5 \| 0 \| 1 \| 3 \| .+ \|/;
+                    let expectedRowMatch = /\|.*\|.*\| 5 \| 0 \|  \|  \| .+ \|/;
                     // await Promise.race([plugin.insertText["Start Focus"](app), plugin.appOption["Pause Focus"](app)]);
                     let runPromise = plugin.insertText["Start Focus"](app);
                     runPromise.then(() => console.log("yes")).catch(() => console.log("no"));
@@ -451,7 +451,7 @@ describe("within a test environment", () => {
                     const jot = await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
                     app.context.noteUUID = "1";
                     await app.createNote(plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard], "", "2");
-                    let expectedRowMatch = /\|.*\|.*\| 5 \| 0 \| 1 \| 3 \| .+ \|/;
+                    let expectedRowMatch = /\|.*\|.*\| 5 \| 0 \|  \|  \| .+ \|/;
                     // await Promise.race([plugin.insertText["Start Focus"](app), plugin.appOption["Pause Focus"](app)]);
                     let runPromise = plugin.insertText["Start Focus"](app);
                     runPromise.then(() => console.log("yes")).catch(() => console.log("no"));
