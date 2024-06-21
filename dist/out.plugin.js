@@ -631,8 +631,9 @@ ${dataRows}`;
     if (result === null) {
       energy = 0;
       morale = 0;
+    } else {
+      [energy, morale] = result;
     }
-    [energy, morale] = result;
     if (!energy)
       energy = 0;
     if (!morale)
