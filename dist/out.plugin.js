@@ -361,7 +361,7 @@ ${dataRows}`;
     if (!targetNoteUUID) {
       targetNoteUUID = app.context.noteUUID;
     }
-    await app.insertNoteContent({ uuid: targetNoteUUID }, contents, { atEnd: true });
+    await app.context.replaceSelection(contents);
   }
 
   // lib/amplefocus/amplefocus.js
@@ -479,7 +479,7 @@ ${dataRows}`;
   }
   async function _promptStartTime(app) {
     const startTimeOptions = _generateStartTimeOptions();
-    return new Date(Number(await app.prompt("Focus Cycle Configuration", {
+    let result = await app.prompt("When would you like to start? Choose the time of the first work cycle.", {
       inputs: [
         {
           label: "Start Time",
@@ -487,13 +487,16 @@ ${dataRows}`;
           options: startTimeOptions
         }
       ]
-    })));
+    });
+    if (result === -1 || result === null)
+      return new Date(Number(startTimeOptions[4]));
+    return new Date(Number(result));
   }
   async function _promptCycleCount(app, options, startTimeValue) {
     const startTime = new Date(Number(startTimeValue));
     console.log("Start time selected:", _formatAsTime(startTime));
     const cycleOptions = _generateCycleOptions(startTime, options);
-    return await app.prompt("Focus Cycle Configuration", {
+    let result = await app.prompt("How long should this session be? Choose the number of cycles you want to focus for.", {
       inputs: [
         {
           label: "Number of Cycles",
@@ -502,9 +505,12 @@ ${dataRows}`;
         }
       ]
     });
+    if (result === -1 || result === null)
+      throw new Error("Number of cycles not selected. Cannot proceed.");
+    return result;
   }
   async function _promptInitialQuestions(app, options) {
-    const initialQuestions = await app.prompt("Initial Questions", {
+    const initialQuestions = await app.prompt("Take some time to outline your focus session.", {
       inputs: options.initialQuestions.map(function(question) {
         return {
           label: question,
@@ -596,7 +602,7 @@ ${dataRows}`;
     return endTime;
   }
   async function _promptEnergyMorale(app, message) {
-    let [energy, morale] = await app.prompt(
+    let result = await app.prompt(
       message,
       {
         inputs: [
@@ -621,6 +627,12 @@ ${dataRows}`;
         ]
       }
     );
+    let energy, morale;
+    if (result === null) {
+      energy = 0;
+      morale = 0;
+    }
+    [energy, morale] = result;
     if (!energy)
       energy = 0;
     if (!morale)
@@ -652,13 +664,11 @@ ${dataRows}`;
     markAddress(sessionHeadingName, app.context.noteUUID);
     if (firstCycle === 1)
       await appendToSession(app, "\n## Cycles");
+    let workEndTime = new Date(startTime.getTime() - options.breakDuration);
     let breakEndTime = startTime;
-    let workEndTime;
-    workEndTime = new Date(breakEndTime.getTime() + options.workDuration);
     for (let i = firstCycle - 1; i <= cycles; i++) {
       try {
-        if (i >= 1)
-          await _handleWorkPhase(app, options, dash, focusNote, workEndTime, i, cycles);
+        await _handleWorkPhase(app, options, dash, focusNote, workEndTime, i, cycles);
         await _handleBreakPhase(app, options, dash, focusNote, breakEndTime, i, cycles);
       } catch (error) {
         if (error.name === "AbortError") {
@@ -711,7 +721,10 @@ ${dataRows}`;
 ### Cycle ${nextCycle}`);
       await appendToHeading(app, `Cycle ${nextCycle}`, `
 - Plan:`);
-      let [energy, morale] = await _promptEnergyMorale(app, "Work phase completed. It's time to plan the next cycle. How are your energy and morale levels right now?");
+      let [energy, morale] = await _promptEnergyMorale(
+        app,
+        "Work phase completed. Before you start your break, take a minute to debrief and plan.\nHow are your energy and morale levels right now?"
+      );
       let tableDict = await _readDasbhoard(app, dash);
       tableDict = await _appendToTopTableCell(tableDict, "Energy Logs", energy);
       tableDict = await _appendToTopTableCell(tableDict, "Morale Logs", morale);
