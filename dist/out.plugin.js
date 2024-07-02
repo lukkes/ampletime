@@ -360,6 +360,7 @@ ${dataRows}`;
   var sessionStartTime;
   var sessionEndTime;
   var sleepUntil;
+  var status;
   function pauseSession() {
     changeState("PAUSED");
   }
@@ -367,12 +368,16 @@ ${dataRows}`;
     changeState("NEW");
   }
   var timerController;
+  var signal;
   async function stopTimers() {
     if (state !== "RUNNING") {
       console.log("Nothing to stop.");
       return;
     }
     timerController.abort();
+  }
+  function setSignal(newSignal) {
+    signal = newSignal;
   }
   var runningCriticalCode;
   var markSafeToExit;
@@ -660,25 +665,53 @@ ${dataRows}`;
     let breakEndTime = startTime;
     for (let i = firstCycle - 1; i <= cycles; i++) {
       currentCycle = i;
+      if (currentCycle === 0) {
+        status = "Waiting for session to start...";
+      } else {
+        status = "Working...";
+      }
       try {
         await _handleWorkPhase(app, options, dash, focusNote, workEndTime, i, cycles);
+      } catch (error) {
+        if (handleAbortSignal(error))
+          break;
+      }
+      status = "Break time...";
+      try {
         await _handleBreakPhase(app, options, dash, focusNote, breakEndTime, i, cycles);
       } catch (error) {
-        if (error.name === "AbortError") {
-          console.log("Session canceled");
+        if (handleAbortSignal(error))
           break;
-        } else {
-          throw error;
-        }
       }
       workEndTime = new Date(breakEndTime.getTime() + options.workDuration);
       breakEndTime = new Date(workEndTime.getTime() + options.breakDuration);
     }
     if (state !== "PAUSED") {
       await _writeEndTime(app, options, dash);
+      status = "Session paused...";
+    } else {
+      status = "Session finished.";
     }
     if (timerController.signal.aborted) {
       timerController = new AbortController();
+    }
+  }
+  function handleAbortSignal(error) {
+    if (error.name === "AbortError") {
+      if (signal === "cancel") {
+        console.log("Session canceled");
+        status = "Session cancelled";
+        return true;
+      } else if (signal === "pause") {
+        console.log("Session paused");
+        status = "Session paused";
+        return true;
+      } else if (signal === "end-cycle") {
+        console.log("Cycle ended early");
+        return false;
+      }
+    } else {
+      throw error;
     }
   }
   async function _writeEndTime(app, options, dash) {
@@ -778,7 +811,7 @@ ${progressBar}
         currentCycle,
         cycleCount: sessionCycleCount,
         sessionEnd: sessionEndTime,
-        status: "Waiting..."
+        status
       }
     });
     const sleepTime = endTime.getTime() - Date.now();
@@ -1475,6 +1508,7 @@ ${progressBar}
       "Pause Focus": async function(app) {
         try {
           console.log("Attempting to pause Amplefocus session...");
+          setSignal("pause");
           await stopTimers();
           pauseSession();
           await runningCriticalCode;
@@ -1487,6 +1521,7 @@ ${progressBar}
       "Cancel Focus": async function(app) {
         try {
           console.log("Attempting to pause Amplefocus session...");
+          setSignal("cancel");
           let dash = await _ensureDashboardNote(app, this.options.amplefocus);
           let task = await _isTaskRunning(app, dash);
           if (!task) {
@@ -1584,7 +1619,7 @@ ${progressBar}
           console.log(endTime, now, timeLeft);
 
         if (timeLeft < 0) {
-          display.textContent = "Time's up!";
+          display.textContent = "00:00";
           clearInterval(_interval);
           return;
         }
@@ -1619,12 +1654,21 @@ ${progressBar}
       _sleepUntil = new Date(sleepUntil).getTime();
       _currentCycle = currentCycle;
       _cycleCount = cycleCount;
-      _sessionEnd = sessionEnd;
+      _sessionEnd = new Date(sessionEnd);
       _status = status;
 
       console.log("EMBED");
-      console.log(project, currentCycle, cycleCount, sessionEnd, status);
-      console.log(document.getElementsByClassName("countdown")[0]);
+      let elementCycleProgress = document.getElementById("cycle-progress");
+      let elementSessionEnd = document.getElementById("session-end");
+      let elementStatus = document.getElementById("status");
+      let elementTimeTrackingElapsed = document.getElementById("time-tracking-elapsed");
+      let elementTimeTrackingProject = document.getElementById("time-tracking-project");
+      
+      elementCycleProgress.textContent = \`Cycle \${_currentCycle} out of \${_cycleCount}\`;
+      elementSessionEnd.textContent = \`Session ends at \${_sessionEnd.toLocaleTimeString("en-us")}\`;
+      elementStatus.textContent = _status;
+      elementTimeTrackingElapsed.textContent = "Not tracking anything";
+      elementTimeTrackingProject.textContent = "";
       startCountdown(_sleepUntil, document.getElementById("countdown"));
     }
 
@@ -1755,14 +1799,14 @@ ${progressBar}
     <body>
     <div class="container">
       <div class="header">
-        <div>Time Elapsed: 10:25</div>
-        <div>Project: Sample Project</div>
+        <div id="time-tracking-elapsed">Time Elapsed: 10:25</div>
+        <div id="time-tracking-project">Project: Sample Project</div>
       </div>
       <div class="timer-info">
-        <div>Cycle 1 out of 5</div>
-        <div>Session ends at 7pm</div>
+        <div id="cycle-progress">Cycle 1 out of 5</div>
+        <div id="session-end">Session ends at 7pm</div>
       </div>
-      <div class="status">status</div>
+      <div class="status" id="status">status</div>
       <div class="countdown" id="countdown">30:00</div>
       <div class="button-row">
         <button>End cycle early</button>
