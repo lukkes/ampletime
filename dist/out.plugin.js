@@ -1,7 +1,7 @@
 (() => {
   // lib/markdown.js
   async function _createTableHeader(columns) {
-    console.log(`_createTableHeader(${columns}`);
+    console.debug(`_createTableHeader(${columns}`);
     const separatorFirst = columns.map(() => " ").join("|");
     const separatorSecond = columns.map(() => "-").join("|");
     const header = columns.join(" | ");
@@ -10,7 +10,7 @@
 | ${header} |`;
   }
   function _markdownTableToDict(content) {
-    console.log(`_markdownTableToDict(${content})`);
+    console.debug(`_markdownTableToDict(${content})`);
     const tableRegex = /\|(?:.+?)\|$/gm;
     const tableMatch = content.match(tableRegex);
     if (!tableMatch)
@@ -31,10 +31,7 @@
     });
   }
   function _dictToMarkdownTable(tableDict) {
-    console.log(`_dictToMarkdownTable(${tableDict})`);
-    console.log(tableDict);
-    console.log(tableDict[0]);
-    console.log(Object.keys(tableDict[0]));
+    console.debug(`_dictToMarkdownTable(${tableDict})`);
     const headers = Object.keys(tableDict[0]);
     const separatorFirst = `|${headers.map(() => " ").join("|")}|`;
     const separatorSecond = `|${headers.map(() => "-").join("|")}|`;
@@ -68,11 +65,10 @@ ${dataRows}`;
   function _durationToSeconds(duration) {
     let [hours, minutes, seconds] = duration.split(":").map(Number);
     let totalSeconds = hours * 3600 + minutes * 60 + seconds;
-    console.log(totalSeconds);
     return totalSeconds;
   }
   function _calculateDuration(startTime, endTime) {
-    console.log(`_calculateDuration(${startTime}, ${endTime})`);
+    console.debug(`_calculateDuration(${startTime}, ${endTime})`);
     let start = new Date(startTime);
     let end = new Date(endTime);
     let durationMillis = end - start;
@@ -85,7 +81,7 @@ ${dataRows}`;
     return `${hours}:${minutes}:${seconds}`;
   }
   function _addDurations(duration1, duration2) {
-    console.log(`_addDurations(${duration1}, ${duration2})`);
+    console.debug(`_addDurations(${duration1}, ${duration2})`);
     const seconds1 = _durationToSeconds(duration1);
     const seconds2 = _durationToSeconds(duration2);
     const totalSeconds = seconds1 + seconds2;
@@ -166,7 +162,7 @@ ${dataRows}`;
 
   // lib/ampletime/dashboard.js
   async function _ensureDashboardNote(app, options) {
-    console.log(`_ensureDashboardNote`);
+    console.debug(`_ensureDashboardNote`);
     let dash = await app.findNote(
       { name: options.noteTitleDashboard, tags: [options.noteTagDashboard] }
     );
@@ -218,12 +214,12 @@ ${dataRows}`;
     return true;
   }
   function _editTopTableCell(tableDict, key, value) {
-    console.log(`_editTopTableCell(${tableDict}, ${key}, ${value})`);
+    console.debug(`_editTopTableCell(${tableDict}, ${key}, ${value})`);
     tableDict[0][key] = value;
     return tableDict;
   }
   function _appendToTopTableCell(tableDict, key, value) {
-    console.log(`_appendToTopLevelCell(${tableDict}, ${key}, ${value}`);
+    console.debug(`_appendToTopLevelCell(${tableDict}, ${key}, ${value}`);
     let existing = _getTopTableCell(tableDict, key);
     if (!existing) {
       tableDict = _editTopTableCell(tableDict, key, value);
@@ -246,7 +242,7 @@ ${dataRows}`;
     await app.replaceNoteContent(dash, updatedTableMarkdown, { section });
   }
   async function _logStartTime(app, dash, newRow, options) {
-    console.log(`_logStartTime(${dash}, ${newRow}`);
+    console.debug(`_logStartTime(${dash}, ${newRow}`);
     let tableDict = await _readDasbhoard(app, dash);
     tableDict = _insertRowToDict(tableDict, newRow);
     await writeDashboard(app, options, dash, tableDict);
@@ -447,16 +443,6 @@ ${dataRows}`;
     sessionCycleCount = cycleCount;
     sessionStartTime = startTime;
     sessionEndTime = _calculateEndTime(options, startTime, cycleCount);
-    app.openSidebarEmbed(0.66, {
-      ampletime: { project: null },
-      amplefocus: {
-        sleepUntil: startTime.getTime() - options.breakDuration,
-        currentCycle: 0,
-        cycleCount,
-        sessionEnd: sessionEndTime,
-        status: "Waiting..."
-      }
-    });
     const newRow = {
       // "Session ID": Math.max(dash.map(e => e["Session ID"])) + 1,
       "Source Note": _makeNoteLink(await app.findNote({ uuid: app.context.noteUUID })),
@@ -706,7 +692,7 @@ ${dataRows}`;
       _logRemainingTime(app, options, focusNote, workEndTime, "work", cycleIndex);
     }, options.updateInterval);
     try {
-      await _sleepUntil(workEndTime);
+      await _sleepUntil(app, workEndTime);
     } catch (error) {
       clearInterval(workInterval);
       throw error;
@@ -741,7 +727,7 @@ ${dataRows}`;
         _logRemainingTime(app, focusNote, breakEndTime, "break", currentCycle2);
       }, options.updateInterval);
       try {
-        await _sleepUntil(breakEndTime);
+        await _sleepUntil(app, breakEndTime);
       } catch (error) {
         clearInterval(breakInterval);
         throw error;
@@ -783,8 +769,18 @@ ${progressBar}
     });
     return phases.join(" ");
   }
-  async function _sleepUntil(endTime) {
+  async function _sleepUntil(app, endTime) {
     console.log(`Sleeping until ${endTime}...`);
+    app.openSidebarEmbed(0.66, {
+      ampletime: { project: null },
+      amplefocus: {
+        sleepUntil: endTime,
+        currentCycle,
+        cycleCount: sessionCycleCount,
+        sessionEnd: sessionEndTime,
+        status: "Waiting..."
+      }
+    });
     const sleepTime = endTime.getTime() - Date.now();
     sleepUntil = endTime;
     await _cancellableSleep(sleepTime);
@@ -803,221 +799,6 @@ ${progressBar}
       });
       markStarted();
     });
-  }
-  function _renderEmbed(app, ...args) {
-    console.log("RENDER");
-    console.log(args[0], typeof args[0]);
-    let _args = JSON.stringify(args[0]);
-    console.log(_args);
-    return `<!DOCTYPE html>
-        <html lang="en">
-        <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Pomodoro Focus App</title>
-        
-      <script>
-            let _project;
-      let _currentCycle, _cycleCount, _sessionEnd, _status, _sleepUntil;
-      let _interval;
-      
-  function startCountdown(endTime, display) {
-    function updateCountdown() {
-        let now = Date.now();
-        let timeLeft = endTime - now;
-
-        if (timeLeft < 0) {
-            display.textContent = "Time's up!";
-            clearInterval(_interval);
-            return;
-        }
-
-        let seconds = Math.floor(timeLeft / 1000 % 60);
-        let minutes = Math.floor(timeLeft / (1000 * 60) % 60);
-        let hours = Math.floor(timeLeft / (1000 * 60 * 60) % 24);
-        // let days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
-        [seconds, minutes, hours] = [seconds, minutes, hours].map(
-            (item) => ("0" + item).slice(-2)
-        );
-
-        display.textContent = \`\${hours}:\${minutes}:\${seconds}s\`;
-    }
-
-    updateCountdown();
-    _interval = setInterval(updateCountdown, 1000);
-
-    return interval; // Return the interval ID so it can be cleared if needed
-}
-
-async function checkAndUpdateCountdown(display) {
-    updateParameters(await window.callAmplenotePlugin());
-    setInterval(() => {
-        let now = new Date();
-        if (_sleepUntil > now) {
-            clearInterval(currentCountdown);
-            currentCountdown = startCountdown(_sleepUntil.getTime(), display);
-        }
-    }, 60000); // Check every minute
-}
-
-      // Function to update parameters, called every second
-      function updateParameters(response) {
-          let {ampletime, amplefocus} = response;
-          let {project} = ampletime;
-          let {sleepUntil, currentCycle, cycleCount, sessionEnd, status} = amplefocus;
-          
-          _project = project;
-          _sleepUntil = sleepUntil;
-          _currentCycle = currentCycle;
-          _cycleCount = cycleCount;
-          _sessionEnd = sessionEnd;
-          _status = status;
-          
-          console.log("EMBED");
-          console.log(project, currentCycle, cycleCount, sessionEnd, status);
-          
-          startCountdown(_sleepUntil);
-      }
-      
-
-      try { 
-        // Get the display element
-        let countdownDisplay = document.getElementById('countdown');
-        // Start checking for updates to sleepUntil
-        checkAndUpdateCountdown(countdownDisplay).then(result => console.log("gata"));
-      } catch (err) {
-        console.error(err);
-        throw err;
-      }
-
-    </script>
-
-    <style>
-      body, html {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      background-color: #f0f0f0;
-      font-family: Arial, sans-serif;
-    }
-
-      .container {
-      width: 100%;
-      max-height: 500px;
-      min-height: 300px;
-      background-color: white;
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      align-items: center;
-      padding: 2%;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-      position: relative;
-    }
-
-      .header {
-        text-align: center;
-      font-size: 14px;
-      padding: 2%;
-    }
-
-      .timer-info {
-      width: 100%;
-      display: flex;
-      justify-content: space-between;
-      font-size: 12px;
-      margin-bottom: 2%;
-    }
-
-      .status {
-        font-size: 24px; /* Medium font size */
-      text-align: center;
-    }
-
-      .countdown {
-        font-size: 100px;
-      font-weight: bold;
-    }
-
-      .button-row {
-      display: flex;
-      justify-content: space-between;
-      width: 100%;
-      margin-top:1px;
-      padding: 1px
-    }
-
-      .button-row button {
-      flex: 1;
-      margin: 5px;
-      padding: 10px;
-      font-size: 16px;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-      background-color: #007BFF;
-      color: white;
-    }
-
-      .button-row button:hover {
-        background-color: #0056b3;
-    }
-
-      .bottom-buttons {
-      width: 100%;
-      display: flex;
-      justify-content: space-between;
-      position: relative;
-      bottom: 10px;
-      
-    }
-
-      .bottom-buttons button {
-      background: none;
-      border: none;
-      color: #d9534f; /* Intimidating red color */
-      cursor: pointer;
-      font-size: 14px;
-      padding-top: 5%
-    }
-
-      .bottom-buttons button:hover {
-        text-decoration: underline;
-    }
-
-      .bottom-buttons .pause-button {
-      color: #f0ad4e; /* Less intimidating color */
-    }
-    </style>
-  </head>
-    <body>
-    <div class="container">
-      <div class="header">
-        <div>Time Elapsed: 10:25</div>
-        <div>Project: Sample Project</div>
-      </div>
-      <div class="timer-info">
-        <div>Cycle 1 out of 5</div>
-        <div>Session ends at 7pm</div>
-      </div>
-      <div class="status">status</div>
-      <div class="countdown">30:00</div>
-      <div class="button-row">
-        <button>End cycle early</button>
-        <button>Start tracking time on something</button>
-      </div>
-      <div class="bottom-buttons">
-        <button class="pause-button">Pause focus session</button>
-        <button>End session early</button>
-      </div>
-    </div>
-    </body>
-  </html>`;
   }
 
   // lib/ampletime/entries.js
@@ -1779,7 +1560,225 @@ async function checkAndUpdateCountdown(display) {
         }
       };
     },
-    renderEmbed: (app, ...args) => _renderEmbed(app, ...args)
+    _renderEmbed(app, ...args) {
+      return args[0];
+    },
+    renderEmbed(app, ...args) {
+      console.log("caca1");
+      let _args = JSON.stringify(args[0]);
+      console.log("caca2");
+      console.log(_args);
+      return `<!DOCTYPE html>
+    <html lang="en">
+        <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Pomodoro Focus App</title>
+
+    <script>
+      let _project;
+      let _currentCycle, _cycleCount, _sessionEnd, _status, _sleepUntil;
+      let _interval;
+
+      function startCountdown(endTime, display) {
+      function updateCountdown() {
+        let now = Date.now();
+        let timeLeft = endTime - now;
+          console.log(endTime, now, timeLeft);
+
+        if (timeLeft < 0) {
+          display.textContent = "Time's up!";
+          clearInterval(_interval);
+          return;
+        }
+
+        let seconds = Math.floor(timeLeft / 1000 % 60);
+        let minutes = Math.floor(timeLeft / (1000 * 60) % 60);
+        let hours = Math.floor(timeLeft / (1000 * 60 * 60) % 24);
+        // let days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+        [seconds, minutes, hours] = [seconds, minutes, hours].map(
+            (item) => ("0" + item).slice(-2)
+        );
+        console.log("HOURS", hours);
+        let textContent = \`\${hours}:\${minutes}:\${seconds}\`;
+        if (hours === "00") textContent = textContent.slice(3);
+        display.textContent = textContent;
+      }
+
+      updateCountdown();
+      _interval = setInterval(updateCountdown, 1000);
+
+      return _interval; // Return the interval ID so it can be cleared if needed
+    }
+
+      // Function to update parameters, called every second
+      function updateParameters(response) {
+      console.log("testing", response);
+      let {ampletime, amplefocus} = response;
+      let {project} = ampletime;
+      let {sleepUntil, currentCycle, cycleCount, sessionEnd, status} = amplefocus;
+
+      _project = project;
+      _sleepUntil = new Date(sleepUntil).getTime();
+      _currentCycle = currentCycle;
+      _cycleCount = cycleCount;
+      _sessionEnd = sessionEnd;
+      _status = status;
+
+      console.log("EMBED");
+      console.log(project, currentCycle, cycleCount, sessionEnd, status);
+      console.log(document.getElementsByClassName("countdown")[0]);
+      startCountdown(_sleepUntil, document.getElementById("countdown"));
+    }
+
+      try {
+        console.log("cacatry");
+      function run() {
+        console.log("cacarun");
+        let sleeper = new Date();
+        sleeper = new Date(sleeper.getTime() + 5 * 60 * 1000);
+        updateParameters(JSON.parse('${_args}'));
+      }
+      window.onload = run;
+      if (document.readyState === "complete" || document.readyState === "interactive") {
+          // If document is already loaded or interactive, call run directly
+          run();
+      } 
+        console.log("cacaonload");
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
+
+    </script>
+
+    <style>
+      body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background-color: #f0f0f0;
+      font-family: Arial, sans-serif;
+    }
+
+      .container {
+      width: 100%;
+      max-height: 500px;
+      min-height: 300px;
+      background-color: white;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 2%;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+
+      .header {
+        text-align: center;
+      font-size: 14px;
+      padding: 2%;
+    }
+
+      .timer-info {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      margin-bottom: 2%;
+    }
+
+      .status {
+        font-size: 24px; /* Medium font size */
+      text-align: center;
+    }
+
+      .countdown {
+        font-size: 100px;
+      font-weight: bold;
+    }
+
+      .button-row {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      margin-top:1px;
+      padding: 1px
+    }
+
+      .button-row button {
+      flex: 1;
+      margin: 5px;
+      padding: 10px;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      background-color: #007BFF;
+      color: white;
+    }
+
+      .button-row button:hover {
+        background-color: #0056b3;
+    }
+
+      .bottom-buttons {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      position: relative;
+      bottom: 10px;
+
+    }
+
+      .bottom-buttons button {
+      background: none;
+      border: none;
+      color: #d9534f; /* Intimidating red color */
+      cursor: pointer;
+      font-size: 14px;
+      padding-top: 5%
+    }
+
+      .bottom-buttons button:hover {
+        text-decoration: underline;
+    }
+
+      .bottom-buttons .pause-button {
+      color: #f0ad4e; /* Less intimidating color */
+    }
+    </style>
+  </head>
+    <body>
+    <div class="container">
+      <div class="header">
+        <div>Time Elapsed: 10:25</div>
+        <div>Project: Sample Project</div>
+      </div>
+      <div class="timer-info">
+        <div>Cycle 1 out of 5</div>
+        <div>Session ends at 7pm</div>
+      </div>
+      <div class="status">status</div>
+      <div class="countdown" id="countdown">30:00</div>
+      <div class="button-row">
+        <button>End cycle early</button>
+        <button>Start tracking time on something</button>
+      </div>
+      <div class="bottom-buttons">
+        <button class="pause-button">Pause focus session</button>
+        <button>End session early</button>
+      </div>
+    </div>
+    </body>
+  </html>`;
+    }
   };
   var plugin_default = plugin;
   return plugin;
