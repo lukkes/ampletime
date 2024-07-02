@@ -1560,7 +1560,6 @@ ${progressBar}
         }
       };
     },
-    renderEmbed: (app, ...args) => _renderEmbed(app, ...args),
     renderEmbed(app, ...args) {
       console.log("caca1");
       let _args = JSON.stringify(args[0]);
