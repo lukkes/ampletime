@@ -954,6 +954,7 @@ ${progressBar}
     try {
       canvas = document.createElement("canvas");
     } catch (err) {
+      console.error("document object not found");
       return;
     }
     const ctx = canvas.getContext("2d");
