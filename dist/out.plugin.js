@@ -950,7 +950,12 @@ ${progressBar}
   // lib/ampletime/reports.js
   async function _createLegendSquare(color, options) {
     console.log(`_createLegendSquare(${color})`);
-    const canvas = document.createElement("canvas");
+    let canvas;
+    try {
+      canvas = document.createElement("canvas");
+    } catch (err) {
+      return;
+    }
     const ctx = canvas.getContext("2d");
     const size = options.legendSquareSize;
     canvas.width = size;
