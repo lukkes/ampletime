@@ -1602,229 +1602,337 @@ ${progressBar}
       };
     },
     renderEmbed(app, ...args) {
-      console.log("caca1");
       let _args = JSON.stringify(args[0]);
-      console.log("caca2");
       console.log(_args);
       return `<!DOCTYPE html>
-    <html lang="en">
-        <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Pomodoro Focus App</title>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pomodoro Focus App</title>
 
     <script>
-      let _project;
-      let _currentCycle, _cycleCount, _sessionEnd, _status, _sleepUntil;
-      let _interval;
+        let _project;
+        let _currentCycle, _cycleCount, _sessionEnd, _status, _sleepUntil;
+        let _interval;
 
-      function startCountdown(endTime, display) {
-      function updateCountdown() {
-        let now = Date.now();
-        let timeLeft = endTime - now;
-          console.log(endTime, now, timeLeft);
+        function startCountdown(endTime, display) {
+            function updateCountdown() {
+                let now = Date.now();
+                let timeLeft = endTime - now;
+                console.log(endTime, now, timeLeft);
 
-        if (timeLeft < 0) {
-          display.textContent = "00:00";
-          clearInterval(_interval);
-          return;
+                if (timeLeft < 0) {
+                    display.textContent = "00:00";
+                    clearInterval(_interval);
+                    return;
+                }
+
+                let seconds = Math.floor(timeLeft / 1000 % 60);
+                let minutes = Math.floor(timeLeft / (1000 * 60) % 60);
+                let hours = Math.floor(timeLeft / (1000 * 60 * 60) % 24);
+                // let days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+                [seconds, minutes, hours] = [seconds, minutes, hours].map(
+                    (item) => ("0" + item).slice(-2)
+                );
+                console.log("HOURS", hours);
+                let textContent = \`\${hours}:\${minutes}:\${seconds}\`;
+                if (hours === "00") textContent = textContent.slice(3);
+                display.textContent = textContent;
+            }
+
+            updateCountdown();
+            _interval = setInterval(updateCountdown, 1000);
+
+            return _interval; // Return the interval ID so it can be cleared if needed
         }
 
-        let seconds = Math.floor(timeLeft / 1000 % 60);
-        let minutes = Math.floor(timeLeft / (1000 * 60) % 60);
-        let hours = Math.floor(timeLeft / (1000 * 60 * 60) % 24);
-        // let days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
-        [seconds, minutes, hours] = [seconds, minutes, hours].map(
-            (item) => ("0" + item).slice(-2)
-        );
-        console.log("HOURS", hours);
-        let textContent = \`\${hours}:\${minutes}:\${seconds}\`;
-        if (hours === "00") textContent = textContent.slice(3);
-        display.textContent = textContent;
-      }
+        // Function to update parameters, called every second
+        function updateParameters(response) {
+            console.log("testing", response);
+            let {ampletime, amplefocus} = response;
+            let {project} = ampletime;
+            let {sleepUntil, currentCycle, cycleCount, sessionEnd, status} = amplefocus;
 
-      updateCountdown();
-      _interval = setInterval(updateCountdown, 1000);
+            _project = project;
+            _sleepUntil = new Date(sleepUntil).getTime();
+            _currentCycle = currentCycle;
+            _cycleCount = cycleCount;
+            _sessionEnd = new Date(sessionEnd);
+            _status = status;
 
-      return _interval; // Return the interval ID so it can be cleared if needed
-    }
+            createProgressBar(_cycleCount); 
+            setProgress(_currentCycle); 
+            
+            console.log("EMBED");
+            let elementCycleProgress = document.getElementById("cycle-progress");
+            let elementSessionEnd = document.getElementById("session-end");
+            let elementStatus = document.getElementById("status");
+            let elementTimeTrackingElapsed = document.getElementById("time-tracking-elapsed");
+            let elementTimeTrackingProject = document.getElementById("time-tracking-project");
 
-      // Function to update parameters, called every second
-      function updateParameters(response) {
-      console.log("testing", response);
-      let {ampletime, amplefocus} = response;
-      let {project} = ampletime;
-      let {sleepUntil, currentCycle, cycleCount, sessionEnd, status} = amplefocus;
+            elementCycleProgress.textContent = \`Cycle \${_currentCycle} out of \${_cycleCount}\`;
+            elementSessionEnd.textContent = \`Session ends at \${_sessionEnd.toLocaleTimeString("en-us")}\`;
+            elementStatus.textContent = _status;
+            elementTimeTrackingElapsed.textContent = "Not tracking anything";
+            elementTimeTrackingProject.textContent = "";
+            startCountdown(_sleepUntil, document.getElementById("countdown"));
+        }
 
-      _project = project;
-      _sleepUntil = new Date(sleepUntil).getTime();
-      _currentCycle = currentCycle;
-      _cycleCount = cycleCount;
-      _sessionEnd = new Date(sessionEnd);
-      _status = status;
+        try {
+            function run() {
+                console.log("cacarun");
+                let sleeper = new Date();
+                sleeper = new Date(sleeper.getTime() + 5 * 60 * 1000);
+                updateParameters(JSON.parse('${_args}'));
+            }
 
-      console.log("EMBED");
-      let elementCycleProgress = document.getElementById("cycle-progress");
-      let elementSessionEnd = document.getElementById("session-end");
-      let elementStatus = document.getElementById("status");
-      let elementTimeTrackingElapsed = document.getElementById("time-tracking-elapsed");
-      let elementTimeTrackingProject = document.getElementById("time-tracking-project");
-      
-      elementCycleProgress.textContent = \`Cycle \${_currentCycle} out of \${_cycleCount}\`;
-      elementSessionEnd.textContent = \`Session ends at \${_sessionEnd.toLocaleTimeString("en-us")}\`;
-      elementStatus.textContent = _status;
-      elementTimeTrackingElapsed.textContent = "Not tracking anything";
-      elementTimeTrackingProject.textContent = "";
-      startCountdown(_sleepUntil, document.getElementById("countdown"));
-    }
+            window.onload = run;
+            if (document.readyState === "complete" || document.readyState === "interactive") {
+                // If document is already loaded or interactive, call run directly
+                run();
+            }
+            console.log("cacaonload");
+        } catch (err) {
+            console.error(err);
+            throw err;
+        }
 
-      try {
-        console.log("cacatry");
-      function run() {
-        console.log("cacarun");
-        let sleeper = new Date();
-        sleeper = new Date(sleeper.getTime() + 5 * 60 * 1000);
-        updateParameters(JSON.parse('${_args}'));
-      }
-      window.onload = run;
-      if (document.readyState === "complete" || document.readyState === "interactive") {
-          // If document is already loaded or interactive, call run directly
-          run();
-      } 
-        console.log("cacaonload");
-    } catch (err) {
-      console.error(err);
-      throw err;
-    }
+        function createProgressBar(nodeCount) {
+            const progressBar = document.getElementById('progressBar');
+            const lineContainer = document.getElementById('lineContainer');
+            progressBar.innerHTML = '';
+            lineContainer.style.width = \`calc(100% - \${25 / nodeCount}%)\`;
+
+            for (let i = 0; i < nodeCount; i++) {
+                const node = document.createElement('div');
+                node.classList.add('node');
+                progressBar.appendChild(node);
+
+                if (i < nodeCount - 1) {
+                    const spacing = document.createElement('div');
+                    spacing.style.flexGrow = '1';
+                    progressBar.appendChild(spacing);
+                }
+            }
+
+            progressBar.appendChild(lineContainer);
+        }
+
+        function setProgress(progress) {
+            const nodes = document.querySelectorAll('.node');
+            const lineContainer = document.querySelector('.line-container');
+
+            nodes.forEach((node, index) => {
+                if (index < progress) {
+                    node.classList.add('filled');
+                    node.classList.remove('current'); // Ensure previous nodes are not marked as current
+                } else {
+                    node.classList.remove('filled');
+                    node.classList.remove('current'); // Ensure future nodes are not marked as current
+                }
+            });
+
+            if (progress > 0) {
+                nodes[progress - 1].classList.add('current'); // Mark the current node
+                lineContainer.classList.add('filled');
+                lineContainer.style.width = \`calc(\${(progress - 1) / (nodes.length - 1) * 100}% - \${25 / nodes.length}%)\`;
+            } else {
+                lineContainer.classList.remove('filled');
+                lineContainer.style.width = \`calc(100% - \${25 / nodes.length}%)\`;
+            }
+        }
 
     </script>
 
     <style>
-      body, html {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      background-color: #f0f0f0;
-      font-family: Arial, sans-serif;
-    }
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
 
-      .container {
-      width: 100%;
-      max-height: 500px;
-      min-height: 300px;
-      background-color: white;
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      align-items: center;
-      padding: 2%;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-      position: relative;
-    }
+        .container {
+            width: 100%;
+            max-height: 500px;
+            min-height: 300px;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 2%;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
 
-      .header {
-        text-align: center;
-      font-size: 14px;
-      padding: 2%;
-    }
+        .header {
+            text-align: center;
+            font-size: 14px;
+            padding: 2%;
+        }
 
-      .timer-info {
-      width: 100%;
-      display: flex;
-      justify-content: space-between;
-      font-size: 12px;
-      margin-bottom: 2%;
-    }
+        .timer-info {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            margin-bottom: 2%;
+        }
 
-      .status {
-        font-size: 24px; /* Medium font size */
-      text-align: center;
-    }
+        .status {
+            font-size: 24px; /* Medium font size */
+            text-align: center;
+        }
 
-      .countdown {
-        font-size: 100px;
-      font-weight: bold;
-    }
+        .countdown {
+            font-size: 100px;
+            font-weight: bold;
+        }
 
-      .button-row {
-      display: flex;
-      justify-content: space-between;
-      width: 100%;
-      margin-top:1px;
-      padding: 1px
-    }
+        .button-row {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            margin-top: 1px;
+            padding: 1px
+        }
 
-      .button-row button {
-      flex: 1;
-      margin: 5px;
-      padding: 10px;
-      font-size: 16px;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-      background-color: #007BFF;
-      color: white;
-    }
+        .button-row button {
+            flex: 1;
+            margin: 5px;
+            padding: 10px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #007BFF;
+            color: white;
+        }
 
-      .button-row button:hover {
-        background-color: #0056b3;
-    }
+        .button-row button:hover {
+            background-color: #0056b3;
+        }
 
-      .bottom-buttons {
-      width: 100%;
-      display: flex;
-      justify-content: space-between;
-      position: relative;
-      bottom: 10px;
+        .bottom-buttons {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            position: relative;
+            bottom: 10px;
 
-    }
+        }
 
-      .bottom-buttons button {
-      background: none;
-      border: none;
-      color: #d9534f; /* Intimidating red color */
-      cursor: pointer;
-      font-size: 14px;
-      padding-top: 5%
-    }
+        .bottom-buttons button {
+            background: none;
+            border: none;
+            color: #d9534f; /* Intimidating red color */
+            cursor: pointer;
+            font-size: 14px;
+            padding-top: 5%
+        }
 
-      .bottom-buttons button:hover {
-        text-decoration: underline;
-    }
+        .bottom-buttons button:hover {
+            text-decoration: underline;
+        }
 
-      .bottom-buttons .pause-button {
-      color: #f0ad4e; /* Less intimidating color */
-    }
+        .bottom-buttons .pause-button {
+            color: #f0ad4e; /* Less intimidating color */
+        }
+
+        /* CYCLE PROGRESS */
+        .progress-container {
+            width: 70%;
+            max-width: 600px;
+            padding: 17px;
+            background: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            margin-top: 5%;
+            margin-bottom: 5%;
+        }
+
+        .progress-bar {
+            display: flex;
+            align-items: center;
+            position: relative;
+        }
+
+        .node {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background-color: #ccc;
+            z-index: 2;
+            position: relative;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.3s ease, transform 0.3s ease;
+        }
+
+        .node.filled {
+            background-color: #68ca68;
+            transform: scale(1.1);
+        }
+        
+        .node.current {
+            background-color: #44c9de;
+            transform: scale(1.2);
+        }
+
+        .line-container {
+            position: absolute;
+            top: 50%;
+            left: 12.5px;
+            right: 12.5px;
+            height: 5px;
+            background-color: #ccc;
+            transform: translateY(-50%);
+            z-index: 1;
+            border-radius: 2.5px;
+            transition: background-color 0.3s ease, width 0.3s ease;
+        }
+
+        .line-container.filled {
+            background-color: #68ca68;
+        }
     </style>
-  </head>
-    <body>
-    <div class="container">
-      <div class="header">
+</head>
+<body>
+<div class="container">
+    <div class="header">
         <div id="time-tracking-elapsed">Time Elapsed: 10:25</div>
         <div id="time-tracking-project">Project: Sample Project</div>
-      </div>
-      <div class="timer-info">
+    </div>
+    <div class="timer-info">
         <div id="cycle-progress">Cycle 1 out of 5</div>
         <div id="session-end">Session ends at 7pm</div>
-      </div>
-      <div class="status" id="status">status</div>
-      <div class="countdown" id="countdown">30:00</div>
-      <div class="button-row">
+    </div>
+    <div class="status" id="status">status</div>
+    <div class="countdown" id="countdown">30:00</div>
+    <div class="progress-container">
+        <div class="progress-bar" id="progressBar">
+            <div class="line-container" id="lineContainer"></div>
+            <!-- Nodes will be dynamically generated -->
+        </div>
+    </div>
+    <div class="button-row">
         <button>End cycle early</button>
         <button>Start tracking time on something</button>
-      </div>
-      <div class="bottom-buttons">
+    </div>
+    <div class="bottom-buttons">
         <button class="pause-button">Pause focus session</button>
         <button>End session early</button>
-      </div>
     </div>
-    </body>
-  </html>`;
+</div>
+</body>
+</html>`;
     }
   };
   var plugin_default = plugin;
