@@ -222,7 +222,7 @@ ${dataRows}`;
     console.debug(`_appendToTopLevelCell(${tableDict}, ${key}, ${value}`);
     let existing = _getTopTableCell(tableDict, key);
     if (!existing) {
-      tableDict = _editTopTableCell(tableDict, key, value);
+      tableDict = _editTopTableCell(tableDict, key, `${value}`);
     } else {
       tableDict = _editTopTableCell(tableDict, key, existing + "," + value);
     }
@@ -361,6 +361,8 @@ ${dataRows}`;
   var sessionEndTime;
   var sleepUntil;
   var status;
+  var energyValues;
+  var moraleValues;
   function pauseSession() {
     changeState("PAUSED");
   }
@@ -754,6 +756,8 @@ ${dataRows}`;
       let tableDict = await _readDasbhoard(app, dash);
       tableDict = await _appendToTopTableCell(tableDict, "Energy Logs", energy);
       tableDict = await _appendToTopTableCell(tableDict, "Morale Logs", morale);
+      energyValues = _getTopTableCell(tableDict, "Energy Logs").split(",");
+      moraleValues = _getTopTableCell(tableDict, "Morale Logs").split(",");
       await writeDashboard(app, options, dash, tableDict);
       console.log(`Cycle ${currentCycle2}: Starting break phase...`);
       const breakInterval = setInterval(() => {
@@ -811,7 +815,9 @@ ${progressBar}
         currentCycle,
         cycleCount: sessionCycleCount,
         sessionEnd: sessionEndTime,
-        status
+        status,
+        moraleValues,
+        energyValues
       }
     });
     const sleepTime = endTime.getTime() - Date.now();
@@ -1610,141 +1616,6 @@ ${progressBar}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pomodoro Focus App</title>
-
-    <script>
-        let _project;
-        let _currentCycle, _cycleCount, _sessionEnd, _status, _sleepUntil;
-        let _interval;
-
-        function startCountdown(endTime, display) {
-            function updateCountdown() {
-                let now = Date.now();
-                let timeLeft = endTime - now;
-                console.log(endTime, now, timeLeft);
-
-                if (timeLeft < 0) {
-                    display.textContent = "00:00";
-                    clearInterval(_interval);
-                    return;
-                }
-
-                let seconds = Math.floor(timeLeft / 1000 % 60);
-                let minutes = Math.floor(timeLeft / (1000 * 60) % 60);
-                let hours = Math.floor(timeLeft / (1000 * 60 * 60) % 24);
-                // let days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
-                [seconds, minutes, hours] = [seconds, minutes, hours].map(
-                    (item) => ("0" + item).slice(-2)
-                );
-                console.log("HOURS", hours);
-                let textContent = \`\${hours}:\${minutes}:\${seconds}\`;
-                if (hours === "00") textContent = textContent.slice(3);
-                display.textContent = textContent;
-            }
-
-            updateCountdown();
-            _interval = setInterval(updateCountdown, 1000);
-
-            return _interval; // Return the interval ID so it can be cleared if needed
-        }
-
-        // Function to update parameters, called every second
-        function updateParameters(response) {
-            console.log("testing", response);
-            let {ampletime, amplefocus} = response;
-            let {project} = ampletime;
-            let {sleepUntil, currentCycle, cycleCount, sessionEnd, status} = amplefocus;
-
-            _project = project;
-            _sleepUntil = new Date(sleepUntil).getTime();
-            _currentCycle = currentCycle;
-            _cycleCount = cycleCount;
-            _sessionEnd = new Date(sessionEnd);
-            _status = status;
-
-            createProgressBar(_cycleCount); 
-            setProgress(_currentCycle); 
-            
-            console.log("EMBED");
-            let elementCycleProgress = document.getElementById("cycle-progress");
-            let elementSessionEnd = document.getElementById("session-end");
-            let elementStatus = document.getElementById("status");
-            let elementTimeTrackingElapsed = document.getElementById("time-tracking-elapsed");
-            let elementTimeTrackingProject = document.getElementById("time-tracking-project");
-
-            elementCycleProgress.textContent = \`Cycle \${_currentCycle} out of \${_cycleCount}\`;
-            elementSessionEnd.textContent = \`Session ends at \${_sessionEnd.toLocaleTimeString("en-us")}\`;
-            elementStatus.textContent = _status;
-            elementTimeTrackingElapsed.textContent = "Not tracking anything";
-            elementTimeTrackingProject.textContent = "";
-            startCountdown(_sleepUntil, document.getElementById("countdown"));
-        }
-
-        try {
-            function run() {
-                console.log("cacarun");
-                let sleeper = new Date();
-                sleeper = new Date(sleeper.getTime() + 5 * 60 * 1000);
-                updateParameters(JSON.parse('${_args}'));
-            }
-
-            window.onload = run;
-            if (document.readyState === "complete" || document.readyState === "interactive") {
-                // If document is already loaded or interactive, call run directly
-                run();
-            }
-            console.log("cacaonload");
-        } catch (err) {
-            console.error(err);
-            throw err;
-        }
-
-        function createProgressBar(nodeCount) {
-            const progressBar = document.getElementById('progressBar');
-            const lineContainer = document.getElementById('lineContainer');
-            progressBar.innerHTML = '';
-            lineContainer.style.width = \`calc(100% - \${25 / nodeCount}%)\`;
-
-            for (let i = 0; i < nodeCount; i++) {
-                const node = document.createElement('div');
-                node.classList.add('node');
-                progressBar.appendChild(node);
-
-                if (i < nodeCount - 1) {
-                    const spacing = document.createElement('div');
-                    spacing.style.flexGrow = '1';
-                    progressBar.appendChild(spacing);
-                }
-            }
-
-            progressBar.appendChild(lineContainer);
-        }
-
-        function setProgress(progress) {
-            const nodes = document.querySelectorAll('.node');
-            const lineContainer = document.querySelector('.line-container');
-
-            nodes.forEach((node, index) => {
-                if (index < progress) {
-                    node.classList.add('filled');
-                    node.classList.remove('current'); // Ensure previous nodes are not marked as current
-                } else {
-                    node.classList.remove('filled');
-                    node.classList.remove('current'); // Ensure future nodes are not marked as current
-                }
-            });
-
-            if (progress > 0) {
-                nodes[progress - 1].classList.add('current'); // Mark the current node
-                lineContainer.classList.add('filled');
-                lineContainer.style.width = \`calc(\${(progress - 1) / (nodes.length - 1) * 100}% - \${25 / nodes.length}%)\`;
-            } else {
-                lineContainer.classList.remove('filled');
-                lineContainer.style.width = \`calc(100% - \${25 / nodes.length}%)\`;
-            }
-        }
-
-    </script>
-
     <style>
         body, html {
             margin: 0;
@@ -1758,7 +1629,7 @@ ${progressBar}
         }
 
         .container {
-            width: 100%;
+            width: 400px;
             max-height: 500px;
             min-height: 300px;
             background-color: white;
@@ -1768,7 +1639,7 @@ ${progressBar}
             flex-direction: column;
             justify-content: space-between;
             align-items: center;
-            padding: 2%;
+            padding: 3% 5%;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
             position: relative;
         }
@@ -1793,8 +1664,35 @@ ${progressBar}
         }
 
         .countdown {
-            font-size: 100px;
+            font-size: 90px;
             font-weight: bold;
+        position: relative;
+        }
+
+        .graph-container {
+            top: 50%;
+            left: 50%;
+            /*transform: translate(-50%, -50%);*/
+            width: 90%;
+            /* height: 200px;*/
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .tooltip {
+            background-color: rgba(0, 0, 0, 0.7) !important;
+            color: #fff !important;
+            border-radius: 5px !important;
+            text-align: center !important;
+            padding: 8px !important;
+        }
+
+        .tooltip:before {
+            border-top-color: rgba(0, 0, 0, 0.7) !important;
         }
 
         .button-row {
@@ -1849,8 +1747,8 @@ ${progressBar}
 
         /* CYCLE PROGRESS */
         .progress-container {
-            width: 70%;
-            max-width: 600px;
+            width: 90%;
+            max-width: 1000px;
             padding: 17px;
             background: #fff;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
@@ -1877,12 +1775,12 @@ ${progressBar}
         }
 
         .node.filled {
-            background-color: #68ca68;
+            background-color: #5A6C4E;
             transform: scale(1.1);
         }
-        
+
         .node.current {
-            background-color: #44c9de;
+            background-color: #5A6C4E;
             transform: scale(1.2);
         }
 
@@ -1900,7 +1798,7 @@ ${progressBar}
         }
 
         .line-container.filled {
-            background-color: #68ca68;
+            background-color: #5A6C4E;
         }
     </style>
 </head>
@@ -1916,6 +1814,9 @@ ${progressBar}
     </div>
     <div class="status" id="status">status</div>
     <div class="countdown" id="countdown">30:00</div>
+    <div class="graph-container">
+        <canvas id="myChart"></canvas>
+    </div>
     <div class="progress-container">
         <div class="progress-bar" id="progressBar">
             <div class="line-container" id="lineContainer"></div>
@@ -1923,16 +1824,272 @@ ${progressBar}
         </div>
     </div>
     <div class="button-row">
-        <button>End cycle early</button>
-        <button>Start tracking time on something</button>
     </div>
     <div class="bottom-buttons">
-        <button class="pause-button">Pause focus session</button>
+        <button class="pause-button">End cycle early</button>
         <button>End session early</button>
     </div>
 </div>
-</body>
-</html>`;
+
+<script>
+    let chartInstance; // Global variable to hold the chart instance
+
+    function createGraph(moraleValues, energyValues, cycleCount) {
+        const ctx = document.getElementById('myChart').getContext('2d');
+
+        // Ensure the datasets are padded to the cycleCount length with null values
+        const paddedMoraleValues = Array.from({ length: cycleCount }, (_, i) => moraleValues[i] !== undefined ? moraleValues[i] : null);
+        const paddedEnergyValues = Array.from({ length: cycleCount }, (_, i) => energyValues[i] !== undefined ? energyValues[i] : null);
+
+        const data = {
+            labels: Array.from({ length: cycleCount }, (_, i) => \`Cycle \${i + 1}\`),
+            datasets: [
+                {
+                    label: 'Morale',
+                    data: paddedMoraleValues,
+                    borderColor: 'rgba(170, 100, 86, 0.7)',
+                    backgroundColor: 'rgba(170, 100, 86, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: 'rgba(170, 100, 86, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(170, 100, 86, 1)',
+                },
+                {
+                    label: 'Energy',
+                    data: paddedEnergyValues, 
+                    borderColor: 'rgba(57, 81, 57, 0.7)',
+                    backgroundColor: 'rgba(57, 81, 57, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: 'rgba(57, 81, 57, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(57, 81, 57, 0.1)',
+                }
+            ]
+        };
+
+        const config = {
+            type: 'line',
+            data: data,
+            options: {
+                responsive: true,
+                aspectRatio: 3.25, // Adjust the aspect ratio to make the graph flatter or narrower
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                        titleColor: '#fff',
+                        bodyColor: '#fff',
+                        footerColor: '#fff',
+                        titleFont: { weight: 'bold' },
+                        bodyFont: { weight: 'normal' },
+                        callbacks: {
+                            label: function (context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                label += context.raw;
+                                return label;
+                            }
+                        }
+                    },
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: false,
+                        position: 'left',
+                        max: 3.2,
+                        min: 0.8,
+                    },
+                    x: {
+                        display: false,
+                        ticks: {
+                            maxTicksLimit: cycleCount
+                        },
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        };
+
+        _loadLibrary("https://cdn.jsdelivr.net/npm/chart.js").then(() => {
+            console.log("loaded");
+
+            // If a chart instance exists, destroy it before creating a new one
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, config);
+        });
+    }
+
+    let _project;
+    let _currentCycle, _cycleCount, _sessionEnd, _status, _sleepUntil;
+    let _interval;
+    let _moraleValues, _energyValues;
+
+    function startCountdown(endTime, display) {
+    function updateCountdown() {
+        let now = Date.now();
+        let timeLeft = endTime - now;
+        console.log(endTime, now, timeLeft);
+
+        if (timeLeft < 0) {
+            display.textContent = "00:00";
+            clearInterval(_interval);
+            return;
+        }
+
+        let seconds = Math.floor(timeLeft / 1000 % 60);
+        let minutes = Math.floor(timeLeft / (1000 * 60) % 60);
+        let hours = Math.floor(timeLeft / (1000 * 60 * 60) % 24);
+        [seconds, minutes, hours] = [seconds, minutes, hours].map(
+            (item) => ("0" + item).slice(-2)
+        );
+        console.log("HOURS", hours);
+        let textContent = \`\${hours}:\${minutes}:\${seconds}\`;
+        if (hours === "00") textContent = textContent.slice(3);
+        display.textContent = textContent;
+    }
+
+    updateCountdown();
+    _interval = setInterval(updateCountdown, 1000);
+
+    return _interval; // Return the interval ID so it can be cleared if needed
+}
+
+    // Function to update parameters, called every second
+    function updateParameters(response) {
+    console.log("testing", response);
+    let {ampletime, amplefocus} = response;
+    let {project} = ampletime;
+    let {sleepUntil, currentCycle, cycleCount, sessionEnd, status, moraleValues, energyValues} = amplefocus;
+
+    _project = project;
+    _sleepUntil = new Date(sleepUntil).getTime();
+    _currentCycle = currentCycle;
+    _cycleCount = cycleCount;
+    _sessionEnd = new Date(sessionEnd);
+    _status = status;
+    _moraleValues = moraleValues;
+    _energyValues = energyValues;
+
+    createProgressBar(_cycleCount);
+    setProgress(_currentCycle);
+
+    createGraph(_moraleValues, _energyValues, _cycleCount);
+
+    console.log("EMBED");
+    let elementCycleProgress = document.getElementById("cycle-progress");
+    let elementSessionEnd = document.getElementById("session-end");
+    let elementStatus = document.getElementById("status");
+    let elementTimeTrackingElapsed = document.getElementById("time-tracking-elapsed");
+    let elementTimeTrackingProject = document.getElementById("time-tracking-project");
+
+    elementCycleProgress.textContent = \`Cycle \${_currentCycle} out of \${_cycleCount}\`;
+    elementSessionEnd.textContent = \`Session ends at \${_sessionEnd.toLocaleTimeString("en-us")}\`;
+    elementStatus.textContent = _status;
+    elementTimeTrackingElapsed.textContent = "Not tracking anything";
+    elementTimeTrackingProject.textContent = "";
+    startCountdown(_sleepUntil, document.getElementById("countdown"));
+}
+
+    try {
+    function run() {
+        console.log("cacarun");
+        let sleeper = new Date();
+        sleeper = new Date(sleeper.getTime() + 5 * 60 * 1000);
+        console.log('${_args}');
+        createProgressBar(8);
+        setProgress(3);
+        createGraph([1, 2, 3], [3, 2, 1], 8);
+        updateParameters(JSON.parse('${_args}'));
+    }
+
+    window.onload = run;
+    if (document.readyState === "complete" || document.readyState === "interactive") {
+    // If document is already loaded or interactive, call run directly
+    run();
+}
+    console.log("cacaonload");
+} catch (err) {
+    console.error(err);
+    throw err;
+}
+
+    function createProgressBar(nodeCount) {
+    const progressBar = document.getElementById('progressBar');
+    const lineContainer = document.getElementById('lineContainer');
+    progressBar.innerHTML = '';
+    lineContainer.style.width = \`calc(100% - \${25 / nodeCount}%)\`;
+
+    for (let i = 0; i < nodeCount; i++) {
+    const node = document.createElement('div');
+    node.classList.add('node');
+    progressBar.appendChild(node);
+
+    if (i < nodeCount - 1) {
+    const spacing = document.createElement('div');
+    spacing.style.flexGrow = '1';
+    progressBar.appendChild(spacing);
+}
+}
+
+    progressBar.appendChild(lineContainer);
+}
+
+    function setProgress(progress) {
+    const nodes = document.querySelectorAll('.node');
+    const lineContainer = document.querySelector('.line-container');
+
+    nodes.forEach((node, index) => {
+    if (index < progress) {
+    node.classList.add('filled');
+    node.classList.remove('current'); // Ensure previous nodes are not marked as current
+} else {
+    node.classList.remove('filled');
+    node.classList.remove('current'); // Ensure future nodes are not marked as current
+}
+});
+
+    if (progress > 0) {
+    nodes[progress - 1].classList.add('current'); // Mark the current node
+    lineContainer.classList.add('filled');
+    lineContainer.style.width = \`calc(\${(progress - 1) / (nodes.length - 1) * 100}% - \${25 / nodes.length}%)\`;
+} else {
+    lineContainer.classList.remove('filled');
+    lineContainer.style.width = \`calc(100% - \${25 / nodes.length}%)\`;
+}
+}
+
+    function _loadLibrary(url) {
+    return new Promise(function(resolve) {
+    const script = document.createElement("script");
+    script.setAttribute("type", "text/javascript");
+    script.setAttribute("src", url);
+    script.addEventListener("load", function() {
+    resolve(true);
+});
+    document.body.appendChild(script);
+});
+}
+        </script>
+        </body>
+    </html>`;
     }
   };
   var plugin_default = plugin;
