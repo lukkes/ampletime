@@ -61,8 +61,7 @@ ${dataRows}`;
   }
   function _durationToSeconds(duration) {
     let [hours, minutes, seconds] = duration.split(":").map(Number);
-    let totalSeconds = hours * 3600 + minutes * 60 + seconds;
-    return totalSeconds;
+    return hours * 3600 + minutes * 60 + seconds;
   }
   function _calculateDuration(startTime, endTime) {
     console.debug(`_calculateDuration(${startTime}, ${endTime})`);
@@ -227,8 +226,7 @@ ${dataRows}`;
   }
   async function _readDasbhoard(app, dash) {
     let content = await app.getNoteContent(dash);
-    let tableDict = _markdownTableToDict(content);
-    return tableDict;
+    return _markdownTableToDict(content);
   }
   async function writeDashboard(app, options, dash, tableDict) {
     let updatedTableMarkdown = _dictToMarkdownTable(tableDict);
@@ -345,10 +343,7 @@ ${dataRows}`;
         return section;
     }
   }
-  async function _appendToNote(app, contents, targetNoteUUID = null) {
-    if (!targetNoteUUID) {
-      targetNoteUUID = app.context.noteUUID;
-    }
+  async function _appendToNote(app, contents) {
     await app.context.replaceSelection(contents);
   }
 
@@ -677,7 +672,7 @@ ${dataRows}`;
         status = "Working...";
       }
       try {
-        await _handleWorkPhase(app, options, dash, focusNote, workEndTime, i, cycles);
+        await _handleWorkPhase(app, options, dash, focusNote, workEndTime, i);
       } catch (error) {
         if (handleAbortSignal(error))
           break;
@@ -725,7 +720,7 @@ ${dataRows}`;
     dashTable = _editTopTableCell(dashTable, "End Time", await _getCurrentTime());
     await writeDashboard(app, options, dash, dashTable);
   }
-  async function _handleWorkPhase(app, options, dash, focusNote, workEndTime, cycleIndex, cycles) {
+  async function _handleWorkPhase(app, options, dash, focusNote, workEndTime, cycleIndex) {
     console.log(`Cycle ${cycleIndex}: Starting work phase...`);
     const workInterval = setInterval(() => {
       _logRemainingTime(app, options, focusNote, workEndTime, "work", cycleIndex);
@@ -1636,8 +1631,7 @@ ${progressBar}
     renderEmbed(app, ...args) {
       let _args = JSON.stringify(args[0]);
       console.log(_args);
-      return `<!DOCTYPE html>
-<html lang="en">
+      return `<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">

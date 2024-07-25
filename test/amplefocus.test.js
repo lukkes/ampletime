@@ -50,7 +50,7 @@ function createExpectedJot(cycleCount, trailingContent = "", leadingContent="") 
 ${trailingContent}`;
 }
 
-function createExpectedDash(plugin, cycleCount = 5) {
+function createExpectedDash(plugin) {
     return `## ${plugin.options.amplefocus.sectionTitleDashboardEntries}
 |${" |".repeat(plugin.options.amplefocus.dashboardColumns.length)}
 |${"-|".repeat(plugin.options.amplefocus.dashboardColumns.length)}
@@ -137,10 +137,10 @@ describe("within a test environment", () => {
 
             //----------------------------------------------------------------------------------------------------------
             it("should create the dashboard and the first entry; it should log all session details", async () => {
-                const jot = await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
+                await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
                 app.context.noteUUID = "1";
                 let cycleCount = 5;
-                let expectedDash = createExpectedDash(plugin, cycleCount);
+                let expectedDash = createExpectedDash(plugin);
                 let expectedRowMatch = /\|.*\|.*\| 5 \| 5 \| .* \|/;
                 await plugin.insertText["Start Focus"](app);
                 validateDashboardContents(app, expectedDash, expectedRowMatch);
@@ -157,14 +157,14 @@ describe("within a test environment", () => {
 
             //----------------------------------------------------------------------------------------------------------
             it("should create a new entry in the dashboard", async () => {
-                const jot = await app.createNote("June 12th, 2024", ["daily-jots"], "{AmpleFocus:Start}", "1");
+                await app.createNote("June 12th, 2024", ["daily-jots"], "{AmpleFocus:Start}", "1");
                 app.context.noteUUID = "1";
                 let cycleCount = 5;
                 await app.createNote(
                     plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard], "",
                     "2"
                 );
-                let expectedDash = createExpectedDash(plugin, cycleCount);
+                let expectedDash = createExpectedDash(plugin);
                 const expectedJotContents = createExpectedJot(cycleCount);
                 let expectedRowMatch = /\|.*\|.*\| 5 \| 5 \| .* \|/;
                 await plugin.insertText["Start Focus"](app);
@@ -186,7 +186,7 @@ describe("within a test environment", () => {
 
                 //----------------------------------------------------------------------------------------------------------
                 it("should pause a session", async () => {
-                    const jot = await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
+                    await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
                     app.context.noteUUID = "1";
                     await app.createNote(
                         plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard], "",
@@ -196,14 +196,14 @@ describe("within a test environment", () => {
                     let runPromise = plugin.insertText["Start Focus"](app);
                     runPromise.then(() => console.log("yes")).catch(() => console.log("no"));
                     await starting;
-                    await plugin.appOption["Pause Focus"](app);
+                    await plugin._appOption["Pause Focus"](app);
 
                     validateDashboardContents(app, "", expectedRowMatch);
                 });
 
                 //----------------------------------------------------------------------------------------------------------
                 it("should cancel a session", async () => {
-                    const jot = await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
+                    await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
                     app.context.noteUUID = "1";
                     await app.createNote(
                         plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard], "",
@@ -213,14 +213,14 @@ describe("within a test environment", () => {
                     let runPromise = plugin.insertText["Start Focus"](app);
                     runPromise.then(() => console.log("yes")).catch(() => console.log("no"));
                     await starting;
-                    await plugin.appOption["Cancel Focus"].bind(plugin)(app);
+                    await plugin._appOption["Cancel Focus"].bind(plugin)(app);
 
                     validateDashboardContents(app, "", expectedRowMatch);
                 });
 
                 //----------------------------------------------------------------------------------------------------------
                 it("should cancel a paused session", async () => {
-                    const jot = await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
+                    await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
                     app.context.noteUUID = "1";
                     await app.createNote(
                         plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard], "",
@@ -230,8 +230,8 @@ describe("within a test environment", () => {
                     let runPromise = plugin.insertText["Start Focus"](app);
                     runPromise.then(() => console.log("yes")).catch(() => console.log("no"));
                     await starting;
-                    await plugin.appOption["Pause Focus"](app);
-                    await plugin.appOption["Cancel Focus"].bind(plugin)(app);
+                    await plugin._appOption["Pause Focus"](app);
+                    await plugin._appOption["Cancel Focus"].bind(plugin)(app);
 
                     validateDashboardContents(app, "", expectedRowMatch);
                 });
@@ -259,14 +259,14 @@ describe("within a test environment", () => {
 
                 //----------------------------------------------------------------------------------------------------------
                 it("should stop the open session and start the new one", async () => {
-                    const jot = await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
+                    await app.createNote("June 12th, 2024", ["daily-jots"], "", "1");
                     app.context.noteUUID = "1";
                     let cycleCount = 5;
                     await app.createNote(
                         plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard],
                         dashContents, "2"
                     );
-                    let expectedDash = createExpectedDash(plugin, cycleCount);
+                    let expectedDash = createExpectedDash(plugin);
                     let expectedRowMatch1 = /\|.*\|.*\| 5 \| 2 \| .* \|/;
                     let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 1,2,3,3,1 \| 3,2,3,3,3 \| .* \|/;
                     await plugin.insertText["Start Focus"](app);
@@ -297,14 +297,14 @@ But please don't write here`;
                     const leadingContent = `Some unrelated text
 # \\[${startTime.slice(11, 16)}\\]`;
                     const initialJotContents = createInitialJotContents(trailingContent, leadingContent, 5, 1, 2, false);
-                    const jot = await app.createNote("June 12th, 2024", ["daily-jots"], initialJotContents, "1");
+                    await app.createNote("June 12th, 2024", ["daily-jots"], initialJotContents, "1");
                     app.context.noteUUID = "1";
                     let cycleCount = 5;
                     await app.createNote(
                         plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard],
                         dashContents, "2"
                     );
-                    let expectedDash = createExpectedDash(plugin, cycleCount);
+                    let expectedDash = createExpectedDash(plugin);
                     let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 3,3,1 \| 3,3,3 \| .* \|/;
                     let expectedJotContents = createInitialJotContents(trailingContent, leadingContent, 5, 1, 5, false);
                     await plugin.insertText["Start Focus"](app);
@@ -317,14 +317,14 @@ But please don't write here`;
 # \\[${startTime.slice(11, 16)}\\]`;
                     let initialJotContents = createInitialJotContents(null, leadingContent, 5, 1, 0, false);
                     initialJotContents = initialJotContents.split("\n").slice(0, 15).join("\n");
-                    const jot = await app.createNote("June 12th, 2024", ["daily-jots"], initialJotContents, "1");
+                    await app.createNote("June 12th, 2024", ["daily-jots"], initialJotContents, "1");
                     app.context.noteUUID = "1";
                     let cycleCount = 5;
                     await app.createNote(
                         plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard],
                         dashContents, "2"
                     );
-                    let expectedDash = createExpectedDash(plugin, cycleCount);
+                    let expectedDash = createExpectedDash(plugin);
                     let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 3,3,1 \| 3,3,3 \| .* \|/;
                     let expectedJotContents = createInitialJotContents(undefined, undefined, 5, 2, 5, false);
                     await plugin.insertText["Start Focus"](app);
@@ -342,7 +342,7 @@ But please don't write here`;
             //----------------------------------------------------------------------------------------------------------
             it("should write new logs and not edit the previous ones", async () => {
                 const initialJotContents = createInitialJotContents(undefined, undefined, 5, 1, 5);
-                const jot = await app.createNote("June 12th, 2024", ["daily-jots"], initialJotContents, "1");
+                await app.createNote("June 12th, 2024", ["daily-jots"], initialJotContents, "1");
                 app.context.noteUUID = "1";
                 let cycleCount = 5;
                 let expectedJotContents = createExpectedJot(cycleCount);
