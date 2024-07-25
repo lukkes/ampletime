@@ -265,7 +265,7 @@ ${dataRows}`;
     plainText = plainText.replace(/\\\[([^\]]+?)\\\]/g, "[$1]");
     return plainText.trim();
   }
-  function _sectionRange(bodyContent, sectionHeadingText) {
+  function _sectionRange(bodyContent, sectionHeadingText, headingIndex = 0) {
     console.debug(`_sectionRange`);
     const sectionRegex = /^#+\s*([^#\n\r]+)/gm;
     let indexes = Array.from(bodyContent.matchAll(sectionRegex));
@@ -274,7 +274,16 @@ ${dataRows}`;
       newIndex[1] = stripMarkdownFormatting(newIndex[1]);
       return newIndex;
     });
-    const sectionMatch = indexes.find((m) => m[1].trim() === sectionHeadingText.trim());
+    let occurrenceCount = 0;
+    const sectionMatch = indexes.find((m) => {
+      if (m[1].trim() === sectionHeadingText.trim()) {
+        if (occurrenceCount === headingIndex) {
+          return true;
+        }
+        occurrenceCount++;
+      }
+      return false;
+    });
     if (!sectionMatch) {
       console.error("Could not find section", sectionHeadingText, "that was looked up. This might be expected");
       return { startIndex: null, endIndex: null };
@@ -312,11 +321,12 @@ ${dataRows}`;
   }
   function _sectionContent(noteContent, headingTextOrSectionObject) {
     console.debug(`_sectionContent()`);
-    let sectionHeadingText;
+    let sectionHeadingText, sectionIndex;
     if (typeof headingTextOrSectionObject === "string") {
       sectionHeadingText = headingTextOrSectionObject;
     } else {
       sectionHeadingText = headingTextOrSectionObject.heading.text;
+      sectionIndex = headingTextOrSectionObject.index;
     }
     try {
       sectionHeadingText = sectionHeadingText.replace(/^#+\s*/, "");
@@ -325,7 +335,7 @@ ${dataRows}`;
         throw new Error(`${err.message} (line 1054)`);
       }
     }
-    const { startIndex, endIndex } = _sectionRange(noteContent, sectionHeadingText);
+    const { startIndex, endIndex } = _sectionRange(noteContent, sectionHeadingText, sectionIndex);
     return noteContent.slice(startIndex, endIndex);
   }
   async function _getSessionSubHeading(app, sectionName) {
@@ -651,6 +661,9 @@ ${dataRows}`;
       let sessionHeading2 = sections.filter(
         (section) => section?.heading?.text.includes(`[${hoursMinutes}`)
       );
+      if (sessionHeading2.length === 0) {
+        throw "Could not find a section in the current note that corresponds to the currently unfinished session.";
+      }
       sessionHeadingName = sessionHeading2[0].heading.text;
     } else {
       const timestamp = startTime.toLocaleTimeString(
