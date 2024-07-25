@@ -311,5 +311,24 @@ But please don't write here`;
                 });
             });
         });
+
+        describe("with a previously completed session in the same jot", () => {
+            beforeEach(() => {
+                ({app, plugin} = setUpPluginAndApp());
+            });
+
+            //----------------------------------------------------------------------------------------------------------
+            it("should write new logs and not edit the previous ones", async () => {
+                const initialJotContents = createInitialJotContents(undefined, undefined, 5, 5);
+                const jot = await app.createNote("June 12th, 2024", ["daily-jots"], initialJotContents, "1");
+                app.context.noteUUID = "1";
+                let cycleCount = 5;
+                let expectedJotContents = createExpectedJot(cycleCount);
+                await plugin.insertText["Start Focus"](app);
+                validateJotContents(app, expectedJotContents);
+                validateJotContents(app, initialJotContents)
+            })
+
+        })
     });
 });
