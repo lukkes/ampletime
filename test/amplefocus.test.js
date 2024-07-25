@@ -76,17 +76,16 @@ function setUpPluginAndApp(workDuration = 0.1, breakDuration = 0.05) {
     return {app, plugin};
 }
 
-function createRunningSessionDash(plugin) {
+function createRunningSessionDash(plugin, startTime) {
     return `## ${plugin.options.amplefocus.sectionTitleDashboardEntries}
 |${" |".repeat(plugin.options.amplefocus.dashboardColumns.length)}
 |${"-|".repeat(plugin.options.amplefocus.dashboardColumns.length)}
 | ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
-| [June 12th, 2024](https://www.amplenote.com/notes/1) | 2024-06-19T16:14:36.532 | 5 | 2 |  |`;
+| [June 12th, 2024](https://www.amplenote.com/notes/1) | ${startTime} | 5 | 2 |  |`;
 }
 
-function createInitialJotContents(trailingContent="", leadingContent="") {
-    return `${leadingContent}
-# **\\[16:14:36\\]** [Focus Dashboard](https://www.amplenote.com/notes/2) for 5 cycles
+function createInitialJotContents(trailingContent="", leadingContent="", cycleCount=5, currentCycle=2, filler=true){
+    let head = `${leadingContent} [Focus Dashboard](https://www.amplenote.com/notes/2) for ${cycleCount} cycles
 ## Session overview
 - **What am I trying to accomplish?**
   - 1
@@ -101,15 +100,19 @@ function createInitialJotContents(trailingContent="", leadingContent="") {
 - **Anything else noteworthy?**
   - 6
 ## Cycles
-### Cycle 1
-- Plan:
-
-- Debrief:
-
-### Cycle 2
-- Plan:
-${trailingContent}
-`
+`;
+    let cycles = [];
+    for (let i = 0; i < currentCycle; i++) {
+        let newEntry = "";
+        if (filler) {
+            newEntry = `### Cycle ${i + 1}\n- Plan:\n- Do this thing\n- Debrief:\n`;
+        } else {
+            newEntry= `### Cycle ${i + 1}\n- Plan:`;
+        }
+        if (currentCycle === cycleCount || i < currentCycle - 1) newEntry += `\n\n- Debrief:\n`;
+        cycles.push(newEntry);
+    }
+    return head + cycles.join("\n") + "\n" + (currentCycle < cycleCount ? "" : "## Session debrief\n" ) + trailingContent;
 }
 
 function validateDashboardContents(app, expectedDash, expectedRowMatch) {
@@ -234,11 +237,11 @@ describe("within a test environment", () => {
         });
 
         describe("with a running session", () => {
-            let dashContents;
+            let dashContents, startTime = "2024-06-19T16:14:36.532";
 
             beforeEach(() => {
                 ({app, plugin} = setUpPluginAndApp());
-                dashContents = createRunningSessionDash(plugin);
+                dashContents = createRunningSessionDash(plugin, startTime);
             });
 
             describe("if the user abandons open session", () => {
@@ -289,8 +292,9 @@ This is some text without a heading per se
 
 ### Cycle 4
 But please don't write here`;
-                    const leadingContent = "Some unrelated text/n";
-                    const initialJotContents = createInitialJotContents(trailingContent, leadingContent);
+                    const leadingContent = `Some unrelated text
+# \\[${startTime.slice(11, 16)}\\]`;
+                    const initialJotContents = createInitialJotContents(trailingContent, leadingContent, 5, 2, false);
                     const jot = await app.createNote("June 12th, 2024", ["daily-jots"], initialJotContents, "1");
                     app.context.noteUUID = "1";
                     let cycleCount = 5;
@@ -300,7 +304,7 @@ But please don't write here`;
                     );
                     let expectedDash = createExpectedDash(plugin, cycleCount);
                     let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 3,3,1 \| 3,3,3 \| .* \|/;
-                    let expectedJotContents = createExpectedJot(cycleCount, trailingContent);
+                    let expectedJotContents = createInitialJotContents(trailingContent, leadingContent, 5, 5, false);
                     await plugin.insertText["Start Focus"](app);
                     validateDashboardContents(app, expectedDash, expectedRowMatch2);
                     validateJotContents(app, expectedJotContents);
