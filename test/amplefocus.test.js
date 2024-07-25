@@ -84,7 +84,7 @@ function createRunningSessionDash(plugin, startTime) {
 | [June 12th, 2024](https://www.amplenote.com/notes/1) | ${startTime} | 5 | 2 |  |`;
 }
 
-function createInitialJotContents(trailingContent="", leadingContent="", cycleCount=5, currentCycle=2, filler=true){
+function createInitialJotContents(trailingContent="", leadingContent="", cycleCount=5, firstCycle = 1, currentCycle=2, filler=true){
     let head = `${leadingContent} [Focus Dashboard](https://www.amplenote.com/notes/2) for ${cycleCount} cycles
 ## Session overview
 - **What am I trying to accomplish?**
@@ -311,6 +311,26 @@ But please don't write here`;
                     validateDashboardContents(app, expectedDash, expectedRowMatch2);
                     validateJotContents(app, expectedJotContents);
                 });
+
+                it("should create a heading again if missing", async () => {
+                    const leadingContent = `Some unrelated text
+# \\[${startTime.slice(11, 16)}\\]`;
+                    let initialJotContents = createInitialJotContents(null, leadingContent, 5, 1, 0, false);
+                    initialJotContents = initialJotContents.split("\n").slice(0, 15).join("\n");
+                    const jot = await app.createNote("June 12th, 2024", ["daily-jots"], initialJotContents, "1");
+                    app.context.noteUUID = "1";
+                    let cycleCount = 5;
+                    await app.createNote(
+                        plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard],
+                        dashContents, "2"
+                    );
+                    let expectedDash = createExpectedDash(plugin, cycleCount);
+                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 3,3,1 \| 3,3,3 \| .* \|/;
+                    let expectedJotContents = createInitialJotContents(undefined, undefined, 5, 2, 5, false);
+                    await plugin.insertText["Start Focus"](app);
+                    validateDashboardContents(app, expectedDash, expectedRowMatch2);
+                    validateJotContents(app, expectedJotContents);
+                })
             });
         });
 
