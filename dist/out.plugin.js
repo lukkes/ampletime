@@ -460,7 +460,10 @@ ${dataRows}`;
       "End Time": ""
     };
     await _logStartTime(app, dash, newRow, options);
-    const initialQuestions = await _promptInitialQuestions(app, options);
+    let initialQuestions = [];
+    for (let question of options.initialQuestions) {
+      initialQuestions.push(`- ${question}`);
+    }
     await _insertSessionOverview(app, options, startTime, cycleCount, initialQuestions);
     await _startSession(app, options, dash, startTime, cycleCount);
     markSafeToExit();
@@ -510,17 +513,6 @@ ${dataRows}`;
       throw new Error("Number of cycles not selected. Cannot proceed.");
     return result;
   }
-  async function _promptInitialQuestions(app, options) {
-    const initialQuestions = await app.prompt("Take some time to outline your focus session.", {
-      inputs: options.initialQuestions.map(function(question) {
-        return {
-          label: question,
-          type: "text"
-        };
-      })
-    });
-    return initialQuestions || [];
-  }
   async function _makeSessionHeading(app, timestamp, cycleCount) {
     const focusNote = await _getFocusNote(app);
     const focusNoteLink = _formatNoteLink(focusNote.name, focusNote.uuid);
@@ -538,8 +530,6 @@ ${dataRows}`;
       sessionMarkdown.push(
         `- **${options.initialQuestions[i]}**`
       );
-      let answer = initialQuestions[i];
-      sessionMarkdown.push(`  - ${answer}`);
     }
     await _appendToNote(app, "\n" + sessionMarkdown.join("\n"));
   }
@@ -807,6 +797,12 @@ ${content}`);
     } else {
       await appendToSession(app, `
 ## Session debrief`);
+      let content = [];
+      for (let question of options.finalQuestions) {
+        content.push(`- ${question}`);
+      }
+      content = content.join("\n");
+      await appendToHeading(app, "Session debrief", content);
       status = "Session finished \u{1F389}";
       await _sleepUntil(app, /* @__PURE__ */ new Date());
       console.log(`Session complete.`);
@@ -1469,13 +1465,18 @@ ${progressBar}
           "Anything else noteworthy?"
         ],
         cycleStartQuestions: [
-          "What am I trying to accomplish this cycle?",
+          "What am I trying to accomplish this cycle? Can I complete it in 30 minutes?",
           "How will I get started?",
           "Any hazards? How will I counter them?"
         ],
         cycleEndQuestions: [
           "Any distractions?",
           "What should I improve for the next cycle?"
+        ],
+        finalQuestions: [
+          "What did I get done in this session?",
+          "Did I get bogged down? Where?",
+          "Want went well in this session? How can I make sure to replicate this in the future?"
         ]
       }
     },
