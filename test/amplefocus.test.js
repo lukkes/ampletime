@@ -62,7 +62,7 @@ function createMockPrompter() {
     return mockPrompter([
         {index: 0},
         {index: 3}, // This means 5 cycles
-        ["1", "2", "3", "4", "5", "6"],
+        ["1", "2", "3", "4", "5"],
         [1, 3], [2, 2], [3, 3], [3, 3], [1, 3],
     ]);
 }
@@ -84,7 +84,7 @@ function createRunningSessionDash(plugin, startTime) {
 | [June 12th, 2024](https://www.amplenote.com/notes/1) | ${startTime} | 5 | 2 |  |`;
 }
 
-function createInitialJotContents(trailingContent="", leadingContent="", cycleCount=5, firstCycle = 1, currentCycle=2, filler=true){
+function createInitialJotContents(plugin, trailingContent="", leadingContent="", cycleCount=5, firstCycle = 1, currentCycle=2, filler=true){
     let head = `${leadingContent} [Focus Dashboard](https://www.amplenote.com/notes/2) for ${cycleCount} cycles
 ## Session overview
 - **What am I trying to accomplish?**
@@ -95,10 +95,8 @@ function createInitialJotContents(trailingContent="", leadingContent="", cycleCo
   - 3
 - **Potential distractions? How am I going to deal with them?**
   - 4
-- **Is this concrete/measurable or subjective/ambiguous?**
-  - 5
 - **Anything else noteworthy?**
-  - 6
+  - 5
 ## Cycles
 `;
     let cycles = [];
@@ -106,12 +104,26 @@ function createInitialJotContents(trailingContent="", leadingContent="", cycleCo
         let newEntry = `### Cycle ${i + 1}`;
         if (firstCycle <= 1 || i > firstCycle - 1) {
             if (filler) {
-                newEntry += `\n- Plan:\n- Do this thing\n`;
+                newEntry += `\n- Cycle start:`;
+                for (let q of plugin.options.amplefocus.cycleStartQuestions) {
+                    newEntry += `\n  - ${q}`;
+                    newEntry += `\n    - Do this thing\n`;
+                }
             } else {
-                newEntry += `\n- Plan:\n`;
+                newEntry += `\n- Cycle start:`;
+                for (let q of plugin.options.amplefocus.cycleStartQuestions) {
+                    newEntry += `\n  - ${q}`;
+                }
             }
+            newEntry += "\n";
         }
-        if (currentCycle === cycleCount || i < currentCycle - 1) newEntry += `\n- Debrief:\n`;
+        if (currentCycle === cycleCount || i < currentCycle - 1) {
+            newEntry += `\n- Cycle debrief:`;
+            for (let q of plugin.options.amplefocus.cycleEndQuestions) {
+                newEntry += `\n  - ${q}`;
+            }
+            newEntry += `\n`;
+        }
         cycles.push(newEntry);
     }
     return head + cycles.join("\n") + (currentCycle < cycleCount ? "" : "\n## Session debrief\n" ) + trailingContent;
@@ -145,7 +157,7 @@ describe("within a test environment", () => {
                 await plugin.insertText["Start Focus"](app);
                 validateDashboardContents(app, expectedDash, expectedRowMatch);
 
-                let expectedJot = createExpectedJot(cycleCount);
+                let expectedJot = createInitialJotContents(plugin, "", "", 5, 1, 5, false);
                 validateJotContents(app, expectedJot);
             });
         });
@@ -165,7 +177,7 @@ describe("within a test environment", () => {
                     "2"
                 );
                 let expectedDash = createExpectedDash(plugin);
-                const expectedJotContents = createExpectedJot(cycleCount);
+                const expectedJotContents = createInitialJotContents(plugin, "", "", 5, 1, 5, false);
                 let expectedRowMatch = /\|.*\|.*\| 5 \| 5 \| .* \|/;
                 await plugin.insertText["Start Focus"](app);
                 validateDashboardContents(app, expectedDash, expectedRowMatch);
@@ -179,7 +191,7 @@ describe("within a test environment", () => {
                     plugin.options.amplefocus.mockPrompter = mockPrompter([
                         startTime.getTime(),
                         {index: 3}, // This means 5 cycles
-                        ["1", "2", "3", "4", "5", "6"],
+                        ["1", "2", "3", "4", "5"],
                         [1, 3], [2, 2], [3, 3], [3, 3], [1, 3],
                     ]);
                 });
@@ -252,7 +264,7 @@ describe("within a test environment", () => {
                         "abandon",
                         {index: 0},
                         {index: 3}, // This means 5 cycles
-                        ["1", "2", "3", "4", "5", "6"],
+                        ["1", "2", "3", "4", "5"],
                         [1, 3], [2, 2], [3, 3], [3, 3], [1, 3],
                     ]);
                 });
@@ -296,7 +308,7 @@ This is some text without a heading per se
 But please don't write here`;
                     const leadingContent = `Some unrelated text
 # \\[${startTime.slice(11, 16)}\\]`;
-                    const initialJotContents = createInitialJotContents(trailingContent, leadingContent, 5, 1, 2, false);
+                    const initialJotContents = createInitialJotContents(plugin, trailingContent, leadingContent, 5, 1, 2, false);
                     await app.createNote("June 12th, 2024", ["daily-jots"], initialJotContents, "1");
                     app.context.noteUUID = "1";
                     let cycleCount = 5;
@@ -306,7 +318,7 @@ But please don't write here`;
                     );
                     let expectedDash = createExpectedDash(plugin);
                     let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 3,3,1 \| 3,3,3 \| .* \|/;
-                    let expectedJotContents = createInitialJotContents(trailingContent, leadingContent, 5, 1, 5, false);
+                    let expectedJotContents = createInitialJotContents(plugin, trailingContent, leadingContent, 5, 1, 5, false);
                     await plugin.insertText["Start Focus"](app);
                     validateDashboardContents(app, expectedDash, expectedRowMatch2);
                     validateJotContents(app, expectedJotContents);
@@ -315,7 +327,7 @@ But please don't write here`;
                 it("should create a heading again if missing", async () => {
                     const leadingContent = `Some unrelated text
 # \\[${startTime.slice(11, 16)}\\]`;
-                    let initialJotContents = createInitialJotContents(null, leadingContent, 5, 1, 0, false);
+                    let initialJotContents = createInitialJotContents(plugin, "", leadingContent, 5, 1, 0, false);
                     initialJotContents = initialJotContents.split("\n").slice(0, 15).join("\n");
                     await app.createNote("June 12th, 2024", ["daily-jots"], initialJotContents, "1");
                     app.context.noteUUID = "1";
@@ -326,7 +338,7 @@ But please don't write here`;
                     );
                     let expectedDash = createExpectedDash(plugin);
                     let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 3,3,1 \| 3,3,3 \| .* \|/;
-                    let expectedJotContents = createInitialJotContents(undefined, undefined, 5, 2, 5, false);
+                    let expectedJotContents = createInitialJotContents(plugin, undefined, undefined, 5, 2, 5, false);
                     await plugin.insertText["Start Focus"](app);
                     validateDashboardContents(app, expectedDash, expectedRowMatch2);
                     validateJotContents(app, expectedJotContents);
@@ -341,11 +353,11 @@ But please don't write here`;
 
             //----------------------------------------------------------------------------------------------------------
             it("should write new logs and not edit the previous ones", async () => {
-                const initialJotContents = createInitialJotContents(undefined, undefined, 5, 1, 5);
+                const initialJotContents = createInitialJotContents(plugin, undefined, undefined, 5, 1, 5);
                 await app.createNote("June 12th, 2024", ["daily-jots"], initialJotContents, "1");
                 app.context.noteUUID = "1";
                 let cycleCount = 5;
-                let expectedJotContents = createExpectedJot(cycleCount);
+                let expectedJotContents = createInitialJotContents(plugin, "", "", 5, 1, 5, false);
                 await plugin.insertText["Start Focus"](app);
                 validateJotContents(app, expectedJotContents);
                 validateJotContents(app, initialJotContents)
