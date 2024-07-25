@@ -62,7 +62,6 @@ function createMockPrompter() {
     return mockPrompter([
         {index: 0},
         {index: 3}, // This means 5 cycles
-        ["1", "2", "3", "4", "5"],
         [1, 3], [2, 2], [3, 3], [3, 3], [1, 3],
     ]);
 }
@@ -88,15 +87,10 @@ function createInitialJotContents(plugin, trailingContent="", leadingContent="",
     let head = `${leadingContent} [Focus Dashboard](https://www.amplenote.com/notes/2) for ${cycleCount} cycles
 ## Session overview
 - **What am I trying to accomplish?**
-  - 1
 - **Why is this important and valuable?**
-  - 2
 - **How will I know this is complete?**
-  - 3
 - **Potential distractions? How am I going to deal with them?**
-  - 4
 - **Anything else noteworthy?**
-  - 5
 ## Cycles
 `;
     let cycles = [];
@@ -126,7 +120,12 @@ function createInitialJotContents(plugin, trailingContent="", leadingContent="",
         }
         cycles.push(newEntry);
     }
-    return head + cycles.join("\n") + (currentCycle < cycleCount ? "" : "\n## Session debrief\n" ) + trailingContent;
+    let debriefContent = [];
+    for (let q of plugin.options.amplefocus.finalQuestions) {
+        debriefContent.push(`- ${q}`);
+    }
+    debriefContent = debriefContent.join("\n");
+    return head + cycles.join("\n") + (currentCycle < cycleCount ? "" : "\n## Session debrief\n" + debriefContent + "\n") + trailingContent;
 }
 
 function validateDashboardContents(app, expectedDash, expectedRowMatch) {
@@ -191,7 +190,6 @@ describe("within a test environment", () => {
                     plugin.options.amplefocus.mockPrompter = mockPrompter([
                         startTime.getTime(),
                         {index: 3}, // This means 5 cycles
-                        ["1", "2", "3", "4", "5"],
                         [1, 3], [2, 2], [3, 3], [3, 3], [1, 3],
                     ]);
                 });
@@ -264,7 +262,6 @@ describe("within a test environment", () => {
                         "abandon",
                         {index: 0},
                         {index: 3}, // This means 5 cycles
-                        ["1", "2", "3", "4", "5"],
                         [1, 3], [2, 2], [3, 3], [3, 3], [1, 3],
                     ]);
                 });
