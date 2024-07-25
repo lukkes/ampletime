@@ -1,7 +1,6 @@
 (() => {
   // lib/markdown.js
   async function _createTableHeader(columns) {
-    console.debug(`_createTableHeader(${columns}`);
     const separatorFirst = columns.map(() => " ").join("|");
     const separatorSecond = columns.map(() => "-").join("|");
     const header = columns.join(" | ");
@@ -10,7 +9,6 @@
 | ${header} |`;
   }
   function _markdownTableToDict(content) {
-    console.debug(`_markdownTableToDict(${content})`);
     const tableRegex = /\|(?:.+?)\|$/gm;
     const tableMatch = content.match(tableRegex);
     if (!tableMatch)
@@ -31,7 +29,6 @@
     });
   }
   function _dictToMarkdownTable(tableDict) {
-    console.debug(`_dictToMarkdownTable(${tableDict})`);
     const headers = Object.keys(tableDict[0]);
     const separatorFirst = `|${headers.map(() => " ").join("|")}|`;
     const separatorSecond = `|${headers.map(() => "-").join("|")}|`;
@@ -134,7 +131,6 @@ ${dataRows}`;
 
   // lib/data-structures.js
   function _insertRowToDict(tableDict, newRow) {
-    console.log(`_insertRowToDict(${tableDict}, ${newRow})`);
     tableDict.unshift(newRow);
     return tableDict;
   }
@@ -152,8 +148,6 @@ ${dataRows}`;
     });
   }
   function _insertColumnInMemory(memory, name, data) {
-    console.log(`_insertColumnInMemory(${memory}, ${name}, ${data})`);
-    console.log(memory);
     return memory.map((obj, index) => ({
       [name]: data[index],
       ...obj
@@ -320,7 +314,6 @@ ${dataRows}`;
     await app.replaceNoteContent({ uuid: sessionNoteUUID }, cycleHeadingContent + content, { section: cycleHeading });
   }
   function _sectionContent(noteContent, headingTextOrSectionObject) {
-    console.debug(`_sectionContent()`);
     let sectionHeadingText, sectionIndex;
     if (typeof headingTextOrSectionObject === "string") {
       sectionHeadingText = headingTextOrSectionObject;
@@ -528,7 +521,6 @@ ${dataRows}`;
         };
       })
     });
-    console.log(initialQuestions);
     return initialQuestions || [];
   }
   async function _makeSessionHeading(app, timestamp, cycleCount) {
@@ -544,7 +536,6 @@ ${dataRows}`;
     let sessionHeadingText = await _makeSessionHeading(app, timestamp, cycleCount);
     let sessionMarkdown = [sessionHeadingText];
     sessionMarkdown.push("## Session overview");
-    console.log(initialQuestions);
     for (let i = 0; i < options.initialQuestions.length; i++) {
       sessionMarkdown.push(
         `- **${options.initialQuestions[i]}**`
@@ -805,6 +796,8 @@ ${dataRows}`;
     } else {
       await appendToSession(app, `
 ## Session debrief`);
+      status = "Session finished \u{1F389}";
+      await _sleepUntil(app, /* @__PURE__ */ new Date());
       console.log(`Session complete.`);
       app.alert(`Session complete. Debrief and relax.`);
     }
@@ -1480,7 +1473,7 @@ ${progressBar}
     //===================================================================================
     // ===== APP OPTIONS ====
     //===================================================================================
-    appOption: {
+    _appOption: {
       "Start...": async function(app) {
         let target = await _promptTarget(app);
         try {
@@ -1592,33 +1585,33 @@ ${progressBar}
         throw err;
       }
     },
+    "Start This Task": {
+      async run(app) {
+        try {
+          await app.context.replaceSelection("");
+          let currentNote = await app.getNoteContent({ uuid: app.context.noteUUID });
+          let target = await app.getTask(app.context.taskUUID);
+          while (true) {
+            if (currentNote.includes(target.content))
+              break;
+            target = await app.getTask(app.context.taskUUID);
+            await new Promise((r) => setTimeout(r, 500));
+          }
+          await _start(app, this.options.ampletime, target);
+        } catch (err) {
+          console.log(err);
+          await app.alert(err);
+        }
+      },
+      async check(app) {
+        if (app.context.taskUUID)
+          return true;
+      }
+    },
     //===================================================================================
     // ===== INSERT TEXT ====
     //===================================================================================
     insertText: {
-      "Start This Task": {
-        async run(app) {
-          try {
-            await app.context.replaceSelection("");
-            let currentNote = await app.getNoteContent({ uuid: app.context.noteUUID });
-            let target = await app.getTask(app.context.taskUUID);
-            while (true) {
-              if (currentNote.includes(target.content))
-                break;
-              target = await app.getTask(app.context.taskUUID);
-              await new Promise((r) => setTimeout(r, 500));
-            }
-            await _start(app, this.options.ampletime, target);
-          } catch (err) {
-            console.log(err);
-            await app.alert(err);
-          }
-        },
-        async check(app) {
-          if (app.context.taskUUID)
-            return true;
-        }
-      },
       "Start Focus": async function(app) {
         try {
           console.log("Starting Amplefocus...");
@@ -1692,6 +1685,7 @@ ${progressBar}
         }
 
         .status {
+            padding-top: 6%;
             font-size: 24px; /* Medium font size */
             text-align: center;
         }
@@ -1838,7 +1832,7 @@ ${progressBar}
 <body>
 <div class="container">
     <div class="header">
-        <div id="time-tracking-elapsed">Time Elapsed: 10:25</div>
+        <!-- <div id="time-tracking-elapsed">Time Elapsed: 10:25</div> -->
         <!-- <div id="time-tracking-project">Project: Sample Project</div> -->
     </div>
     <div class="timer-info">
@@ -1959,8 +1953,6 @@ ${progressBar}
         };
 
         _loadLibrary("https://cdn.jsdelivr.net/npm/chart.js").then(() => {
-            console.log("loaded");
-
             // If a chart instance exists, destroy it before creating a new one
             if (chartInstance) {
                 chartInstance.destroy();
@@ -1979,7 +1971,6 @@ ${progressBar}
     function updateCountdown() {
         let now = Date.now();
         let timeLeft = endTime - now;
-        console.log(endTime, now, timeLeft);
 
         if (timeLeft < 0) {
             display.textContent = "00:00";
@@ -1993,7 +1984,6 @@ ${progressBar}
         [seconds, minutes, hours] = [seconds, minutes, hours].map(
             (item) => ("0" + item).slice(-2)
         );
-        console.log("HOURS", hours);
         let textContent = \`\${hours}:\${minutes}:\${seconds}\`;
         if (hours === "00") textContent = textContent.slice(3);
         display.textContent = textContent;
@@ -2007,7 +1997,6 @@ ${progressBar}
 
     // Function to update parameters, called every second
     function updateParameters(response) {
-    console.log("testing", response);
     let {ampletime, amplefocus} = response;
     let {project} = ampletime;
     let {sleepUntil, currentCycle, cycleCount, sessionEnd, status, moraleValues, energyValues} = amplefocus;
@@ -2026,7 +2015,6 @@ ${progressBar}
 
     createGraph(_moraleValues, _energyValues, _cycleCount);
 
-    console.log("EMBED");
     let elementCycleProgress = document.getElementById("cycle-progress");
     let elementSessionEnd = document.getElementById("session-end");
     let elementStatus = document.getElementById("status");
@@ -2042,7 +2030,6 @@ ${progressBar}
 
     try {
     function run() {
-        console.log('${_args}');
         // createProgressBar(8);
         // setProgress(3);
         // createGraph([1, 2, 3], [3, 2, 1], 8);
@@ -2054,7 +2041,6 @@ ${progressBar}
     // If document is already loaded or interactive, call run directly
     run();
 }
-    console.log("cacaonload");
 } catch (err) {
     console.error(err);
     throw err;
