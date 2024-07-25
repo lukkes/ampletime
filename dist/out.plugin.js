@@ -1935,8 +1935,8 @@ ${progressBar}
                         type: 'linear',
                         display: false,
                         position: 'left',
-                        max: 3.2,
-                        min: 0.8,
+                        max: 1.2,
+                        min: -1.2,
                     },
                     x: {
                         display: false,
