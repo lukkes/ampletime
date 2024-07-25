@@ -102,17 +102,19 @@ function createInitialJotContents(trailingContent="", leadingContent="", cycleCo
 ## Cycles
 `;
     let cycles = [];
-    for (let i = 0; i < currentCycle; i++) {
-        let newEntry = "";
-        if (filler) {
-            newEntry = `### Cycle ${i + 1}\n- Plan:\n- Do this thing\n- Debrief:\n`;
-        } else {
-            newEntry= `### Cycle ${i + 1}\n- Plan:`;
+    for (let i = firstCycle - 1; i < currentCycle; i++) {
+        let newEntry = `### Cycle ${i + 1}`;
+        if (firstCycle <= 1 || i > firstCycle - 1) {
+            if (filler) {
+                newEntry += `\n- Plan:\n- Do this thing\n`;
+            } else {
+                newEntry += `\n- Plan:\n`;
+            }
         }
-        if (currentCycle === cycleCount || i < currentCycle - 1) newEntry += `\n\n- Debrief:\n`;
+        if (currentCycle === cycleCount || i < currentCycle - 1) newEntry += `\n- Debrief:\n`;
         cycles.push(newEntry);
     }
-    return head + cycles.join("\n") + "\n" + (currentCycle < cycleCount ? "" : "## Session debrief\n" ) + trailingContent;
+    return head + cycles.join("\n") + (currentCycle < cycleCount ? "" : "\n## Session debrief\n" ) + trailingContent;
 }
 
 function validateDashboardContents(app, expectedDash, expectedRowMatch) {
@@ -294,7 +296,7 @@ This is some text without a heading per se
 But please don't write here`;
                     const leadingContent = `Some unrelated text
 # \\[${startTime.slice(11, 16)}\\]`;
-                    const initialJotContents = createInitialJotContents(trailingContent, leadingContent, 5, 2, false);
+                    const initialJotContents = createInitialJotContents(trailingContent, leadingContent, 5, 1, 2, false);
                     const jot = await app.createNote("June 12th, 2024", ["daily-jots"], initialJotContents, "1");
                     app.context.noteUUID = "1";
                     let cycleCount = 5;
@@ -304,7 +306,7 @@ But please don't write here`;
                     );
                     let expectedDash = createExpectedDash(plugin, cycleCount);
                     let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 3,3,1 \| 3,3,3 \| .* \|/;
-                    let expectedJotContents = createInitialJotContents(trailingContent, leadingContent, 5, 5, false);
+                    let expectedJotContents = createInitialJotContents(trailingContent, leadingContent, 5, 1, 5, false);
                     await plugin.insertText["Start Focus"](app);
                     validateDashboardContents(app, expectedDash, expectedRowMatch2);
                     validateJotContents(app, expectedJotContents);
@@ -319,7 +321,7 @@ But please don't write here`;
 
             //----------------------------------------------------------------------------------------------------------
             it("should write new logs and not edit the previous ones", async () => {
-                const initialJotContents = createInitialJotContents(undefined, undefined, 5, 5);
+                const initialJotContents = createInitialJotContents(undefined, undefined, 5, 1, 5);
                 const jot = await app.createNote("June 12th, 2024", ["daily-jots"], initialJotContents, "1");
                 app.context.noteUUID = "1";
                 let cycleCount = 5;
