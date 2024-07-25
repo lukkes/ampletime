@@ -747,20 +747,37 @@ ${dataRows}`;
     }
     clearInterval(workInterval);
   }
+  async function appendToCycleHeading(app, heading, content) {
+    try {
+      await appendToHeading(app, heading, content);
+    } catch (err) {
+      await appendCycle(app, heading);
+      await appendToHeading(app, heading, content);
+    }
+  }
+  async function appendCycle(app, cycle) {
+    try {
+      await appendToHeading(app, "Cycles", `
+### ${cycle}`);
+    } catch (err) {
+      await appendToSession(app, "\n## Cycles");
+      await appendToHeading(app, "Cycles", `
+### ${cycle}`);
+    }
+  }
   async function _handleBreakPhase(app, options, dash, focusNote, breakEndTime, cycleIndex, cycles) {
     let currentCycle2, nextCycle;
     currentCycle2 = cycleIndex;
     nextCycle = cycleIndex + 1;
     if (currentCycle2 >= 1) {
-      await appendToHeading(app, `Cycle ${currentCycle2}`, "\n- Debrief:");
+      await appendToCycleHeading(app, `Cycle ${currentCycle2}`, "\n- Debrief:");
       let dashTable = await _readDasbhoard(app, dash);
       dashTable = _editTopTableCell(dashTable, "Cycle Progress", currentCycle2);
       await writeDashboard(app, options, dash, dashTable);
     }
     if (currentCycle2 < cycles) {
-      await appendToHeading(app, `Cycles`, `
-### Cycle ${nextCycle}`);
-      await appendToHeading(app, `Cycle ${nextCycle}`, `
+      await appendCycle(app, `Cycle ${nextCycle}`);
+      await appendToCycleHeading(app, `Cycle ${nextCycle}`, `
 - Plan:`);
       let [energy, morale] = await _promptEnergyMorale(
         app,
