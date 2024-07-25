@@ -761,15 +761,26 @@ ${dataRows}`;
     currentCycle2 = cycleIndex;
     nextCycle = cycleIndex + 1;
     if (currentCycle2 >= 1) {
-      await appendToCycleHeading(app, `Cycle ${currentCycle2}`, "\n- Debrief:");
+      let content = [`- Cycle debrief:`];
+      for (let question of options.cycleEndQuestions) {
+        content.push(`  - ${question}`);
+      }
+      content = content.join("\n");
+      await appendToCycleHeading(app, `Cycle ${currentCycle2}`, `
+${content}`);
       let dashTable = await _readDasbhoard(app, dash);
       dashTable = _editTopTableCell(dashTable, "Cycle Progress", currentCycle2);
       await writeDashboard(app, options, dash, dashTable);
     }
     if (currentCycle2 < cycles) {
       await appendCycle(app, `Cycle ${nextCycle}`);
+      let content = [`- Cycle start:`];
+      for (let question of options.cycleStartQuestions) {
+        content.push(`  - ${question}`);
+      }
+      content = content.join("\n");
       await appendToCycleHeading(app, `Cycle ${nextCycle}`, `
-- Plan:`);
+${content}`);
       let [energy, morale] = await _promptEnergyMorale(
         app,
         "Work phase completed. Before you start your break, take a minute to debrief and plan.\nHow are your energy and morale levels right now?"
@@ -1455,7 +1466,6 @@ ${progressBar}
           "Why is this important and valuable?",
           "How will I know this is complete?",
           "Potential distractions? How am I going to deal with them?",
-          "Is this concrete/measurable or subjective/ambiguous?",
           "Anything else noteworthy?"
         ],
         cycleStartQuestions: [
@@ -1465,8 +1475,7 @@ ${progressBar}
         ],
         cycleEndQuestions: [
           "Any distractions?",
-          "Anything noteworthy?",
-          "Things to improve next cycle?"
+          "What should I improve for the next cycle?"
         ]
       }
     },
