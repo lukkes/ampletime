@@ -371,8 +371,8 @@ ${dataRows}`;
   var sessionEndTime;
   var sleepUntil;
   var status;
-  var energyValues;
-  var moraleValues;
+  var energyValues = [];
+  var moraleValues = [];
   function pauseSession() {
     changeState("PAUSED");
   }
@@ -700,15 +700,15 @@ ${dataRows}`;
       }
       workEndTime = new Date(breakEndTime.getTime() + options.workDuration);
       breakEndTime = new Date(workEndTime.getTime() + options.breakDuration);
+      if (timerController.signal.aborted) {
+        timerController = new AbortController();
+      }
     }
     if (state !== "PAUSED") {
       await _writeEndTime(app, options, dash);
       status = "Session paused...";
     } else {
       status = "Session finished.";
-    }
-    if (timerController.signal.aborted) {
-      timerController = new AbortController();
     }
   }
   function handleAbortSignal(error) {
@@ -1259,7 +1259,6 @@ ${progressBar}
       "End Time": ""
     };
     await _logStartTime(app, dash, newRow, options);
-    app.openSidebarEmbed(1, _getEntryName(toStart), runningTaskDuration[0]["Duration"]);
     console.log(`${target.name} started successfully. Logged today: ${runningTaskDuration[0]["Duration"]}`);
     return true;
   }
@@ -1581,6 +1580,18 @@ ${progressBar}
         }
       }
     },
+    // Note: not actually accessible via the plugin triggers
+    "End Cycle Early": async function(app) {
+      try {
+        console.log("Attempting to end current cycle early...");
+        setSignal("end-cycle");
+        await stopTimers();
+      } catch (err) {
+        console.log(err);
+        app.alert(err);
+        throw err;
+      }
+    },
     //===================================================================================
     // ===== INSERT TEXT ====
     //===================================================================================
@@ -1625,17 +1636,9 @@ ${progressBar}
       }
     },
     async onEmbedCall(app, ...args) {
-      console.log("ey?");
-      return {
-        ampletime: { project: null },
-        amplefocus: {
-          sleepUntil,
-          currentCycle,
-          cycleCount: sessionCycleCount,
-          sessionEnd: sessionEndTime,
-          status: state
-        }
-      };
+      if (args.length === 1 && args[0] === "end-cycle") {
+        return await this["End Cycle Early"]();
+      }
     },
     renderEmbed(app, ...args) {
       let _args = JSON.stringify(args[0]);
@@ -1771,7 +1774,7 @@ ${progressBar}
             text-decoration: underline;
         }
 
-        .bottom-buttons .pause-button {
+        .bottom-buttons #end-cycle-button {
             color: #f0ad4e; /* Less intimidating color */
         }
 
@@ -1836,7 +1839,7 @@ ${progressBar}
 <div class="container">
     <div class="header">
         <div id="time-tracking-elapsed">Time Elapsed: 10:25</div>
-        <div id="time-tracking-project">Project: Sample Project</div>
+        <!-- <div id="time-tracking-project">Project: Sample Project</div> -->
     </div>
     <div class="timer-info">
         <div id="cycle-progress">Cycle 1 out of 5</div>
@@ -1856,8 +1859,8 @@ ${progressBar}
     <div class="button-row">
     </div>
     <div class="bottom-buttons">
-        <button class="pause-button">End cycle early</button>
-        <button>End session early</button>
+        <button id="end-cycle-button">End cycle early</button>
+        <!-- <button>End session early</button> -->
     </div>
 </div>
 
@@ -2027,26 +2030,22 @@ ${progressBar}
     let elementCycleProgress = document.getElementById("cycle-progress");
     let elementSessionEnd = document.getElementById("session-end");
     let elementStatus = document.getElementById("status");
-    let elementTimeTrackingElapsed = document.getElementById("time-tracking-elapsed");
-    let elementTimeTrackingProject = document.getElementById("time-tracking-project");
+    let endCycleButton = document.getElementById("end-cycle-button");
+    
+    endCycleButton.addEventListener("click", () => window.callAmplenotePlugin("end-cycle"));
 
     elementCycleProgress.textContent = \`Cycle \${_currentCycle} out of \${_cycleCount}\`;
     elementSessionEnd.textContent = \`Session ends at \${_sessionEnd.toLocaleTimeString("en-us")}\`;
     elementStatus.textContent = _status;
-    elementTimeTrackingElapsed.textContent = "Not tracking anything";
-    elementTimeTrackingProject.textContent = "";
     startCountdown(_sleepUntil, document.getElementById("countdown"));
 }
 
     try {
     function run() {
-        console.log("cacarun");
-        let sleeper = new Date();
-        sleeper = new Date(sleeper.getTime() + 5 * 60 * 1000);
         console.log('${_args}');
-        createProgressBar(8);
-        setProgress(3);
-        createGraph([1, 2, 3], [3, 2, 1], 8);
+        // createProgressBar(8);
+        // setProgress(3);
+        // createGraph([1, 2, 3], [3, 2, 1], 8);
         updateParameters(JSON.parse('${_args}'));
     }
 
