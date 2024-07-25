@@ -422,7 +422,8 @@ ${dataRows}`;
                 { label: "Abandon previous session", value: "abandon" },
                 { label: "Pick up where you left off", value: "resume" },
                 { label: "Abort", value: "abort" }
-              ]
+              ],
+              value: "resume"
             }
           ]
         }
@@ -482,7 +483,8 @@ ${dataRows}`;
         {
           label: "Start Time",
           type: "select",
-          options: startTimeOptions
+          options: startTimeOptions,
+          value: startTimeOptions[5].value
         }
       ]
     });
@@ -499,7 +501,8 @@ ${dataRows}`;
         {
           label: "Number of Cycles",
           type: "select",
-          options: cycleOptions
+          options: cycleOptions,
+          value: 6
         }
       ]
     });
@@ -604,19 +607,21 @@ ${dataRows}`;
             label: "Energy (how are you feeling physically?)",
             type: "select",
             options: [
-              { label: "Low", value: 1 },
-              { label: "Medium", value: 2 },
-              { label: "High", value: 3 }
-            ]
+              { label: "Low", value: -1 },
+              { label: "Medium", value: 0 },
+              { label: "High", value: 1 }
+            ],
+            value: 0
           },
           {
             label: "Morale (how are you feeling mentally, with respect to the work?)",
             type: "select",
             options: [
-              { label: "Low", value: 1 },
-              { label: "Medium", value: 2 },
-              { label: "High", value: 3 }
-            ]
+              { label: "Low", value: -1 },
+              { label: "Medium", value: 0 },
+              { label: "High", value: 1 }
+            ],
+            value: 0
           }
         ]
       }
