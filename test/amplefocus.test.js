@@ -62,7 +62,7 @@ function createMockPrompter() {
     return mockPrompter([
         {index: 0},
         {index: 3}, // This means 5 cycles
-        [1, 3], [2, 2], [3, 3], [3, 3], [1, 3],
+        [1, 1, 3], [1, 2, 2], [1, 3, 3], [1, 3, 3], [1, 1, 3], [1, 3, 3]
     ]);
 }
 
@@ -190,7 +190,7 @@ describe("within a test environment", () => {
                     plugin.options.amplefocus.mockPrompter = mockPrompter([
                         startTime.getTime(),
                         {index: 3}, // This means 5 cycles
-                        [1, 3], [2, 2], [3, 3], [3, 3], [1, 3],
+                        [1, 1, 3], [1, 2, 2], [1, 3, 3], [1, 3, 3], [1, 1, 3], [1, 3, 3]
                     ]);
                 });
 
@@ -262,7 +262,7 @@ describe("within a test environment", () => {
                         "abandon",
                         {index: 0},
                         {index: 3}, // This means 5 cycles
-                        [1, 3], [2, 2], [3, 3], [3, 3], [1, 3],
+                        [1, 1, 3], [1, 2, 2], [1, 3, 3], [1, 3, 3], [1, 1, 3], [1, 3, 3]
                     ]);
                 });
 
@@ -277,7 +277,7 @@ describe("within a test environment", () => {
                     );
                     let expectedDash = createExpectedDash(plugin);
                     let expectedRowMatch1 = /\|.*\|.*\| 5 \| 2 \| .* \|/;
-                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 1,2,3,3,1 \| 3,2,3,3,3 \| .* \|/;
+                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 1,1,1,1,1,1 \| 1,2,3,3,1,3 \| 3,2,3,3,3,3 \| .* \|/;
                     await plugin.insertText["Start Focus"](app);
                     validateDashboardContents(app, expectedDash, expectedRowMatch2);
                     validateDashboardContents(app, expectedDash, expectedRowMatch1);
@@ -289,7 +289,7 @@ describe("within a test environment", () => {
                     plugin.options.amplefocus.mockPrompter = mockPrompter([
                         "resume",
                         {index: 0},
-                        [3, 3], [3, 3], [1, 3],
+                        [1, 3, 3], [1, 3, 3], [1, 1, 3], [1, 3, 3],
                     ]);
                 });
 
@@ -314,7 +314,7 @@ But please don't write here`;
                         dashContents, "2"
                     );
                     let expectedDash = createExpectedDash(plugin);
-                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 3,3,1 \| 3,3,3 \| .* \|/;
+                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 1,1,1,1 \| 3,3,1,3 \| 3,3,3,3 \| .* \|/;
                     let expectedJotContents = createInitialJotContents(plugin, trailingContent, leadingContent, 5, 1, 5, false);
                     await plugin.insertText["Start Focus"](app);
                     validateDashboardContents(app, expectedDash, expectedRowMatch2);
@@ -334,7 +334,7 @@ But please don't write here`;
                         dashContents, "2"
                     );
                     let expectedDash = createExpectedDash(plugin);
-                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 3,3,1 \| 3,3,3 \| .* \|/;
+                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 1,1,1,1 \| 3,3,1,3 \| 3,3,3,3 \| .* \|/;
                     let expectedJotContents = createInitialJotContents(plugin, undefined, undefined, 5, 2, 5, false);
                     await plugin.insertText["Start Focus"](app);
                     validateDashboardContents(app, expectedDash, expectedRowMatch2);
