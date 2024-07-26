@@ -361,6 +361,7 @@ ${dataRows}`;
   var status;
   var energyValues = [];
   var moraleValues = [];
+  var completionValues = [];
   function pauseSession() {
     changeState("PAUSED");
   }
@@ -455,6 +456,7 @@ ${dataRows}`;
       "Start Time": await _getCurrentTime(),
       "Cycle Count": cycleCount,
       "Cycle Progress": 0,
+      "Completion Logs": "",
       "Energy Logs": "",
       "Morale Logs": "",
       "End Time": ""
@@ -588,46 +590,53 @@ ${dataRows}`;
     console.log("End time calculated:", _formatAsTime(endTime));
     return endTime;
   }
-  async function _promptEnergyMorale(app, message) {
+  async function _promptCompletionEnergyMorale(app, message, promptCompletion) {
+    let promptInput = [];
+    if (promptCompletion) {
+      promptInput.push({
+        label: promptCompletion,
+        type: "checkbox"
+      });
+    }
+    promptInput.push({
+      label: "Energy (how are you feeling physically?)",
+      type: "select",
+      options: [
+        { label: "Low", value: -1 },
+        { label: "Medium", value: 0 },
+        { label: "High", value: 1 }
+      ],
+      value: 0
+    });
+    promptInput.push({
+      label: "Morale (how are you feeling mentally, with respect to the work?)",
+      type: "select",
+      options: [
+        { label: "Low", value: -1 },
+        { label: "Medium", value: 0 },
+        { label: "High", value: 1 }
+      ],
+      value: 0
+    });
     let result = await app.prompt(
       message,
       {
-        inputs: [
-          {
-            label: "Energy (how are you feeling physically?)",
-            type: "select",
-            options: [
-              { label: "Low", value: -1 },
-              { label: "Medium", value: 0 },
-              { label: "High", value: 1 }
-            ],
-            value: 0
-          },
-          {
-            label: "Morale (how are you feeling mentally, with respect to the work?)",
-            type: "select",
-            options: [
-              { label: "Low", value: -1 },
-              { label: "Medium", value: 0 },
-              { label: "High", value: 1 }
-            ],
-            value: 0
-          }
-        ]
+        inputs: promptInput
       }
     );
-    let energy, morale;
+    let completion, energy, morale;
     if (result === null) {
+      completion = true;
       energy = 0;
       morale = 0;
     } else {
-      [energy, morale] = result;
+      [completion, energy, morale] = result;
     }
     if (!energy)
       energy = 0;
     if (!morale)
       morale = 0;
-    return [energy, morale];
+    return [completion, energy, morale];
   }
   async function _startSession(app, options, dash, startTime, cycles, firstCycle, existingSessionStartTime = null) {
     console.log("Starting focus cycle...");
@@ -746,8 +755,15 @@ ${dataRows}`;
 ### ${cycle}`);
     }
   }
+  function getCycleTarget(options, cycleContents) {
+    let start, end;
+    start = cycleContents.indexOf(`${options.cycleStartQuestions[0]}
+`) + options.cycleStartQuestions[0].length;
+    end = cycleContents.indexOf(`- ${options.cycleStartQuestions[1]}`);
+    return cycleContents.slice(start, end).trim();
+  }
   async function _handleBreakPhase(app, options, dash, focusNote, breakEndTime, cycleIndex, cycles) {
-    let currentCycle2, nextCycle;
+    let currentCycle2, nextCycle, energy, morale, completion;
     currentCycle2 = cycleIndex;
     nextCycle = cycleIndex + 1;
     if (currentCycle2 >= 1) {
@@ -761,7 +777,37 @@ ${content}`);
       let dashTable = await _readDasbhoard(app, dash);
       dashTable = _editTopTableCell(dashTable, "Cycle Progress", currentCycle2);
       await writeDashboard(app, options, dash, dashTable);
+      let noteContent = await app.getNoteContent({ uuid: sessionNoteUUID });
+      let cycleTarget = await _getSessionSubHeading(app, `Cycle ${currentCycle2}`);
+      let headingContent = await _sectionContent(noteContent, cycleTarget);
+      cycleTarget = getCycleTarget(options, headingContent);
+      [completion, energy, morale] = await _promptCompletionEnergyMorale(
+        app,
+        "Work phase completed. Did you complete the target for this cycle?",
+        cycleTarget
+        // We display the user's goal for the cycle in the prompt so that they don't need to check manually
+      );
+    } else {
+      [morale, energy, morale] = await _promptCompletionEnergyMorale(
+        app,
+        "Before you start, take a minute to plan yout session.\nHow are your energy and morale levels right now?"
+      );
     }
+    if (completion === true) {
+      completion = 1;
+    } else if (completion === false) {
+      completion = -1;
+    } else {
+      completion = 1;
+    }
+    let tableDict = await _readDasbhoard(app, dash);
+    tableDict = await _appendToTopTableCell(tableDict, "Energy Logs", energy);
+    tableDict = await _appendToTopTableCell(tableDict, "Morale Logs", morale);
+    tableDict = await _appendToTopTableCell(tableDict, "Completion Logs", completion);
+    energyValues = _getTopTableCell(tableDict, "Energy Logs").split(",");
+    moraleValues = _getTopTableCell(tableDict, "Morale Logs").split(",");
+    completionValues = _getTopTableCell(tableDict, "Completion Logs").split(",");
+    await writeDashboard(app, options, dash, tableDict);
     if (currentCycle2 < cycles) {
       await appendCycle(app, `Cycle ${nextCycle}`);
       let content = [`- Cycle start:`];
@@ -771,27 +817,12 @@ ${content}`);
       content = content.join("\n");
       await appendToCycleHeading(app, `Cycle ${nextCycle}`, `
 ${content}`);
-      let [energy, morale] = await _promptEnergyMorale(
-        app,
-        "Work phase completed. Before you start your break, take a minute to debrief and plan.\nHow are your energy and morale levels right now?"
-      );
-      let tableDict = await _readDasbhoard(app, dash);
-      tableDict = await _appendToTopTableCell(tableDict, "Energy Logs", energy);
-      tableDict = await _appendToTopTableCell(tableDict, "Morale Logs", morale);
-      energyValues = _getTopTableCell(tableDict, "Energy Logs").split(",");
-      moraleValues = _getTopTableCell(tableDict, "Morale Logs").split(",");
-      await writeDashboard(app, options, dash, tableDict);
       console.log(`Cycle ${currentCycle2}: Starting break phase...`);
-      const breakInterval = setInterval(() => {
-        _logRemainingTime(app, focusNote, breakEndTime, "break", currentCycle2);
-      }, options.updateInterval);
       try {
         await _sleepUntil(app, breakEndTime);
       } catch (error) {
-        clearInterval(breakInterval);
         throw error;
       }
-      clearInterval(breakInterval);
       app.alert(`Cycle ${currentCycle2}: Break phase completed. Start working!`);
       console.log(`Cycle ${currentCycle2}: Break phase completed.`);
     } else {
@@ -809,33 +840,6 @@ ${content}`);
       app.alert(`Session complete. Debrief and relax.`);
     }
   }
-  function _logRemainingTime(app, options, focusNote, endTime, phase, cycleIndex) {
-    const remainingTime = endTime.getTime() - Date.now();
-    if (remainingTime > 0) {
-      const remainingMinutes = Math.ceil(remainingTime / 1e3 / 60);
-      const phaseDuration = phase === "work" ? options.workDuration : options.breakDuration;
-      const progressBar = _emojiProgressBar(phaseDuration, phaseDuration - remainingTime);
-      const message = `- Cycle ${cycleIndex + 1} ${phase} phase remaining time: ${remainingMinutes} minutes
-${progressBar}
-`;
-      app.replaceNoteContent(focusNote, message);
-    }
-  }
-  function _emojiProgressBar(total, done, width = 320, range = ["\u{1F311}", "\u{1F312}", "\u{1F313}", "\u{1F314}", "\u{1F315}"]) {
-    const n = Math.floor(width / 25);
-    const step = total / n;
-    const emoji = (portion) => {
-      const domain = [0, 1];
-      const quantizedPortion = (portion - domain[0]) / (domain[1] - domain[0]) * (range.length - 1);
-      const index = Math.floor(quantizedPortion);
-      return range[index];
-    };
-    const phases = Array.from(new Array(n), (d, i) => {
-      const portion = done % step / step;
-      return done / step >= i + 1 ? range[range.length - 1] : done / step < i ? range[0] : emoji(portion);
-    });
-    return phases.join(" ");
-  }
   async function _sleepUntil(app, endTime) {
     console.log(`Sleeping until ${endTime}...`);
     app.openSidebarEmbed(0.66, {
@@ -847,7 +851,8 @@ ${progressBar}
         sessionEnd: sessionEndTime,
         status,
         moraleValues,
-        energyValues
+        energyValues,
+        completionValues
       }
     });
     const sleepTime = endTime.getTime() - Date.now();
@@ -1443,10 +1448,12 @@ ${progressBar}
           "Cycle Count",
           "Cycle Progress",
           // How many cycles were completed fully
+          "Completion Logs",
+          //Comma-separate values
           "Energy Logs",
-          // Comma-separated values (1-3)
+          // Comma-separated values
           "Morale Logs",
-          // Comma-separated values (1-3)
+          // Comma-separated values
           "End Time"
         ],
         workDuration: 30 * 1e3,
@@ -1870,7 +1877,7 @@ ${progressBar}
 <script>
     let chartInstance; // Global variable to hold the chart instance
 
-    function createGraph(moraleValues, energyValues, cycleCount) {
+    function createGraph(moraleValues, energyValues, completionValues, cycleCount) {
         const ctx = document.getElementById('myChart').getContext('2d');
 
         // Ensure the datasets are padded to the cycleCount length with null values
@@ -1881,6 +1888,7 @@ ${progressBar}
             labels: Array.from({ length: cycleCount }, (_, i) => \`Cycle \${i + 1}\`),
             datasets: [
                 {
+                    type: "line",
                     label: 'Morale',
                     data: paddedMoraleValues,
                     borderColor: 'rgba(170, 100, 86, 0.7)',
@@ -1893,6 +1901,7 @@ ${progressBar}
                     pointHoverBorderColor: 'rgba(170, 100, 86, 1)',
                 },
                 {
+                    type: "line",
                     label: 'Energy',
                     data: paddedEnergyValues, 
                     borderColor: 'rgba(57, 81, 57, 0.7)',
@@ -1903,12 +1912,20 @@ ${progressBar}
                     pointBorderColor: '#fff',
                     pointHoverBackgroundColor: '#fff',
                     pointHoverBorderColor: 'rgba(57, 81, 57, 0.1)',
-                }
+                },
+                {
+                    type: "bar",
+                    label: "Completion",
+                    data: completionValues,
+                    backgroundColor: "rgba(201, 203, 207, 0.2)",
+                    fill: true,
+                },
+                
             ]
         };
 
         const config = {
-            type: 'line',
+            // type: 'line',
             data: data,
             options: {
                 responsive: true,
@@ -1974,7 +1991,7 @@ ${progressBar}
     let _project;
     let _currentCycle, _cycleCount, _sessionEnd, _status, _sleepUntil;
     let _interval;
-    let _moraleValues, _energyValues;
+    let _moraleValues, _energyValues, _completionValues;
 
     function startCountdown(endTime, display) {
     function updateCountdown() {
@@ -2008,7 +2025,7 @@ ${progressBar}
     function updateParameters(response) {
     let {ampletime, amplefocus} = response;
     let {project} = ampletime;
-    let {sleepUntil, currentCycle, cycleCount, sessionEnd, status, moraleValues, energyValues} = amplefocus;
+    let {sleepUntil, currentCycle, cycleCount, sessionEnd, status, moraleValues, energyValues, completionValues} = amplefocus;
 
     _project = project;
     _sleepUntil = new Date(sleepUntil).getTime();
@@ -2018,11 +2035,12 @@ ${progressBar}
     _status = status;
     _moraleValues = moraleValues;
     _energyValues = energyValues;
+    _completionValues = completionValues;
 
     createProgressBar(_cycleCount);
     setProgress(_currentCycle);
 
-    createGraph(_moraleValues, _energyValues, _cycleCount);
+    createGraph(_moraleValues, _energyValues, _completionValues, _cycleCount);
 
     let elementCycleProgress = document.getElementById("cycle-progress");
     let elementSessionEnd = document.getElementById("session-end");
