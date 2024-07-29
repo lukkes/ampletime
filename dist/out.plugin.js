@@ -622,7 +622,7 @@ ${dataRows}`;
     );
     let completion, energy, morale;
     if (result === null) {
-      completion = true;
+      completion = false;
       energy = 0;
       morale = 0;
     } else {
@@ -784,7 +784,7 @@ ${content}`);
         // We display the user's goal for the cycle in the prompt so that they don't need to check manually
       );
     } else {
-      [morale, energy, morale] = await _promptCompletionEnergyMorale(
+      [completion, energy, morale] = await _promptCompletionEnergyMorale(
         app,
         "Before you start, take a minute to plan yout session.\nHow are your energy and morale levels right now?"
       );
@@ -794,7 +794,7 @@ ${content}`);
     } else if (completion === false) {
       completion = -1;
     } else {
-      completion = 1;
+      completion = -1;
     }
     let tableDict = await _readDasbhoard(app, dash);
     tableDict = await _appendToTopTableCell(tableDict, "Energy Logs", energy);
@@ -1713,6 +1713,7 @@ ${content}`);
         }
 
         .share-text {
+            cursor: pointer;
             font-size: 14px;
             text-align: center;
             margin-top: 5px;
