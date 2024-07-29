@@ -191,7 +191,6 @@ ${dataRows}`;
     });
   }
   async function _isTaskRunning(app, dash) {
-    console.log(`_isTaskRunning(${dash})`);
     const table = await _readDasbhoard(app, dash);
     if (!table)
       return false;
@@ -207,12 +206,10 @@ ${dataRows}`;
     return true;
   }
   function _editTopTableCell(tableDict, key, value) {
-    console.debug(`_editTopTableCell(${tableDict}, ${key}, ${value})`);
     tableDict[0][key] = value;
     return tableDict;
   }
   function _appendToTopTableCell(tableDict, key, value) {
-    console.debug(`_appendToTopLevelCell(${tableDict}, ${key}, ${value}`);
     let existing = _getTopTableCell(tableDict, key);
     if (!existing) {
       tableDict = _editTopTableCell(tableDict, key, `${value}`);
@@ -234,7 +231,6 @@ ${dataRows}`;
     await app.replaceNoteContent(dash, updatedTableMarkdown, { section });
   }
   async function _logStartTime(app, dash, newRow, options) {
-    console.debug(`_logStartTime(${dash}, ${newRow}`);
     let tableDict = await _readDasbhoard(app, dash);
     tableDict = _insertRowToDict(tableDict, newRow);
     await writeDashboard(app, options, dash, tableDict);
@@ -1487,6 +1483,7 @@ ${content}`);
         ]
       }
     },
+    noteUUID: null,
     //===================================================================================
     // ===== APP OPTIONS ====
     //===================================================================================
@@ -1632,6 +1629,7 @@ ${content}`);
       "Start Focus": async function(app) {
         try {
           console.log("Starting Amplefocus...");
+          this.noteUUID = app.context.noteUUID;
           initAmplefocus();
           let dash = await _preStart(app, this.options.amplefocus);
           if (!dash)
@@ -1648,6 +1646,14 @@ ${content}`);
     async onEmbedCall(app, ...args) {
       if (args.length === 1 && args[0] === "end-cycle") {
         return await this["End Cycle Early"]();
+      } else if (args.length === 2) {
+        if (args[0] === "clipboard") {
+          let note = this.noteUUID;
+          let noteHandle = await app.findNote({ uuid: note });
+          let base64Image = args[1];
+          console.log(note, noteHandle);
+          fetch(base64Image).then((res) => res.blob()).then((blob) => _dataURLFromBlob(blob)).then((dataURL) => app.attachNoteMedia(noteHandle, dataURL)).then((fileURL) => appendToHeading(app, "Session debrief", `![](${fileURL})`));
+        }
       }
     },
     renderEmbed(app, ...args) {
@@ -1706,18 +1712,25 @@ ${content}`);
             text-align: center;
         }
 
+        .share-text {
+            font-size: 14px;
+            text-align: center;
+            margin-top: 5px;
+            color: #FF4F02;
+            display: none; /* Hidden by default */
+            padding-bottom: 5%;
+        }
+
         .countdown {
             font-size: 90px;
             font-weight: bold;
-        position: relative;
+            position: relative;
         }
 
         .graph-container {
             top: 50%;
             left: 50%;
-            /*transform: translate(-50%, -50%);*/
             width: 90%;
-            /* height: 200px;*/
         }
 
         canvas {
@@ -1743,7 +1756,7 @@ ${content}`);
             justify-content: space-between;
             width: 100%;
             margin-top: 1px;
-            padding: 1px
+            padding: 1px;
         }
 
         .button-row button {
@@ -1768,7 +1781,6 @@ ${content}`);
             justify-content: space-between;
             position: relative;
             bottom: 10px;
-
         }
 
         .bottom-buttons button {
@@ -1777,7 +1789,7 @@ ${content}`);
             color: #d9534f; /* Intimidating red color */
             cursor: pointer;
             font-size: 14px;
-            padding-top: 5%
+            padding-top: 5%;
         }
 
         .bottom-buttons button:hover {
@@ -1857,6 +1869,7 @@ ${content}`);
     </div>
     <div class="status" id="status">status</div>
     <div class="countdown" id="countdown">30:00</div>
+    <div class="share-text" id="share-text">Share this session's graph?</div>
     <div class="graph-container">
         <canvas id="myChart"></canvas>
     </div>
@@ -1876,6 +1889,13 @@ ${content}`);
 
 <script>
     let chartInstance; // Global variable to hold the chart instance
+    
+    document.getElementById('share-text').addEventListener('click', function() {
+        const myChart = chartInstance; // Assuming chartInstance is your Chart.js instance
+        const base64Image = myChart.toBase64Image();
+        window.callAmplenotePlugin("clipboard", base64Image);
+    });
+
 
     function createGraph(moraleValues, energyValues, completionValues, cycleCount) {
         const ctx = document.getElementById('myChart').getContext('2d');
@@ -1994,144 +2014,150 @@ ${content}`);
     let _moraleValues, _energyValues, _completionValues;
 
     function startCountdown(endTime, display) {
-    function updateCountdown() {
-        let now = Date.now();
-        let timeLeft = endTime - now;
+        function updateCountdown() {
+            let now = Date.now();
+            let timeLeft = endTime - now;
 
-        if (timeLeft < 0) {
-            display.textContent = "00:00";
-            clearInterval(_interval);
-            return;
+            if (timeLeft < 0) {
+                display.textContent = "00:00";
+                clearInterval(_interval);
+
+                console.log(_currentCycle, _cycleCount);
+                if (Number(_currentCycle) === Number(_cycleCount)) {
+                    document.getElementById('share-text').style.display = 'block'; // Show the share text
+                }
+
+                return;
+            }
+
+            let seconds = Math.floor(timeLeft / 1000 % 60);
+            let minutes = Math.floor(timeLeft / (1000 * 60) % 60);
+            let hours = Math.floor(timeLeft / (1000 * 60 * 60) % 24);
+            [seconds, minutes, hours] = [seconds, minutes, hours].map(
+                (item) => ("0" + item).slice(-2)
+            );
+            let textContent = \`\${hours}:\${minutes}:\${seconds}\`;
+            if (hours === "00") textContent = textContent.slice(3);
+            display.textContent = textContent;
         }
 
-        let seconds = Math.floor(timeLeft / 1000 % 60);
-        let minutes = Math.floor(timeLeft / (1000 * 60) % 60);
-        let hours = Math.floor(timeLeft / (1000 * 60 * 60) % 24);
-        [seconds, minutes, hours] = [seconds, minutes, hours].map(
-            (item) => ("0" + item).slice(-2)
-        );
-        let textContent = \`\${hours}:\${minutes}:\${seconds}\`;
-        if (hours === "00") textContent = textContent.slice(3);
-        display.textContent = textContent;
+        updateCountdown();
+        _interval = setInterval(updateCountdown, 1000);
+
+        return _interval; // Return the interval ID so it can be cleared if needed
     }
-
-    updateCountdown();
-    _interval = setInterval(updateCountdown, 1000);
-
-    return _interval; // Return the interval ID so it can be cleared if needed
-}
 
     // Function to update parameters, called every second
     function updateParameters(response) {
-    let {ampletime, amplefocus} = response;
-    let {project} = ampletime;
-    let {sleepUntil, currentCycle, cycleCount, sessionEnd, status, moraleValues, energyValues, completionValues} = amplefocus;
+        let {ampletime, amplefocus} = response;
+        let {project} = ampletime;
+        let {sleepUntil, currentCycle, cycleCount, sessionEnd, status, moraleValues, energyValues, completionValues} = amplefocus;
 
-    _project = project;
-    _sleepUntil = new Date(sleepUntil).getTime();
-    _currentCycle = currentCycle;
-    _cycleCount = cycleCount;
-    _sessionEnd = new Date(sessionEnd);
-    _status = status;
-    _moraleValues = moraleValues;
-    _energyValues = energyValues;
-    _completionValues = completionValues;
+        _project = project;
+        _sleepUntil = new Date(sleepUntil).getTime();
+        _currentCycle = currentCycle;
+        _cycleCount = cycleCount;
+        _sessionEnd = new Date(sessionEnd);
+        _status = status;
+        _moraleValues = moraleValues;
+        _energyValues = energyValues;
+        _completionValues = completionValues;
 
-    createProgressBar(_cycleCount);
-    setProgress(_currentCycle);
+        createProgressBar(_cycleCount);
+        setProgress(_currentCycle);
 
-    createGraph(_moraleValues, _energyValues, _completionValues, _cycleCount);
+        createGraph(_moraleValues, _energyValues, _completionValues, _cycleCount);
 
-    let elementCycleProgress = document.getElementById("cycle-progress");
-    let elementSessionEnd = document.getElementById("session-end");
-    let elementStatus = document.getElementById("status");
-    let endCycleButton = document.getElementById("end-cycle-button");
-    
-    endCycleButton.addEventListener("click", () => window.callAmplenotePlugin("end-cycle"));
+        let elementCycleProgress = document.getElementById("cycle-progress");
+        let elementSessionEnd = document.getElementById("session-end");
+        let elementStatus = document.getElementById("status");
+        let endCycleButton = document.getElementById("end-cycle-button");
+        
+        endCycleButton.addEventListener("click", () => window.callAmplenotePlugin("end-cycle"));
 
-    elementCycleProgress.textContent = \`Cycle \${_currentCycle} out of \${_cycleCount}\`;
-    elementSessionEnd.textContent = \`Session ends at \${_sessionEnd.toLocaleTimeString("en-us")}\`;
-    elementStatus.textContent = _status;
-    startCountdown(_sleepUntil, document.getElementById("countdown"));
-}
-
-    try {
-    function run() {
-        // createProgressBar(8);
-        // setProgress(3);
-        // createGraph([1, 2, 3], [3, 2, 1], 8);
-        updateParameters(JSON.parse('${_args}'));
+        elementCycleProgress.textContent = \`Cycle \${_currentCycle} out of \${_cycleCount}\`;
+        elementSessionEnd.textContent = \`Session ends at \${_sessionEnd.toLocaleTimeString("en-us")}\`;
+        elementStatus.textContent = _status;
+        startCountdown(_sleepUntil, document.getElementById("countdown"));
     }
 
-    window.onload = run;
-    if (document.readyState === "complete" || document.readyState === "interactive") {
-    // If document is already loaded or interactive, call run directly
-    run();
-}
-} catch (err) {
-    console.error(err);
-    throw err;
-}
+    try {
+        function run() {
+            // createProgressBar(8);
+            // setProgress(3);
+            // createGraph([1, 2, 3], [3, 2, 1], 8);
+            updateParameters(JSON.parse('${_args}'));
+        }
+
+        window.onload = run;
+        if (document.readyState === "complete" || document.readyState === "interactive") {
+            // If document is already loaded or interactive, call run directly
+            run();
+        }
+    } catch (err) {
+        console.error(err);
+        throw err;
+    }
 
     function createProgressBar(nodeCount) {
-    const progressBar = document.getElementById('progressBar');
-    const lineContainer = document.getElementById('lineContainer');
-    progressBar.innerHTML = '';
-    lineContainer.style.width = \`calc(100% - \${25 / nodeCount}%)\`;
+        const progressBar = document.getElementById('progressBar');
+        const lineContainer = document.getElementById('lineContainer');
+        progressBar.innerHTML = '';
+        lineContainer.style.width = \`calc(100% - \${25 / nodeCount}%)\`;
 
-    for (let i = 0; i < nodeCount; i++) {
-    const node = document.createElement('div');
-    node.classList.add('node');
-    progressBar.appendChild(node);
+        for (let i = 0; i < nodeCount; i++) {
+            const node = document.createElement('div');
+            node.classList.add('node');
+            progressBar.appendChild(node);
 
-    if (i < nodeCount - 1) {
-    const spacing = document.createElement('div');
-    spacing.style.flexGrow = '1';
-    progressBar.appendChild(spacing);
-}
-}
+            if (i < nodeCount - 1) {
+                const spacing = document.createElement('div');
+                spacing.style.flexGrow = '1';
+                progressBar.appendChild(spacing);
+            }
+        }
 
-    progressBar.appendChild(lineContainer);
-}
+        progressBar.appendChild(lineContainer);
+    }
 
     function setProgress(progress) {
-    const nodes = document.querySelectorAll('.node');
-    const lineContainer = document.querySelector('.line-container');
+        const nodes = document.querySelectorAll('.node');
+        const lineContainer = document.querySelector('.line-container');
 
-    nodes.forEach((node, index) => {
-    if (index < progress) {
-    node.classList.add('filled');
-    node.classList.remove('current'); // Ensure previous nodes are not marked as current
-} else {
-    node.classList.remove('filled');
-    node.classList.remove('current'); // Ensure future nodes are not marked as current
-}
-});
+        nodes.forEach((node, index) => {
+            if (index < progress) {
+                node.classList.add('filled');
+                node.classList.remove('current'); // Ensure previous nodes are not marked as current
+            } else {
+                node.classList.remove('filled');
+                node.classList.remove('current'); // Ensure future nodes are not marked as current
+            }
+        });
 
-    if (progress > 0) {
-    nodes[progress - 1].classList.add('current'); // Mark the current node
-    lineContainer.classList.add('filled');
-    lineContainer.style.width = \`calc(\${(progress - 1) / (nodes.length - 1) * 100}% - \${25 / nodes.length}%)\`;
-} else {
-    lineContainer.classList.remove('filled');
-    lineContainer.style.width = \`calc(100% - \${25 / nodes.length}%)\`;
-}
-}
+        if (progress > 0) {
+            nodes[progress - 1].classList.add('current'); // Mark the current node
+            lineContainer.classList.add('filled');
+            lineContainer.style.width = \`calc(\${(progress - 1) / (nodes.length - 1) * 100}% - \${25 / nodes.length}%)\`;
+        } else {
+            lineContainer.classList.remove('filled');
+            lineContainer.style.width = \`calc(100% - \${25 / nodes.length}%)\`;
+        }
+    }
 
     function _loadLibrary(url) {
-    return new Promise(function(resolve) {
-    const script = document.createElement("script");
-    script.setAttribute("type", "text/javascript");
-    script.setAttribute("src", url);
-    script.addEventListener("load", function() {
-    resolve(true);
-});
-    document.body.appendChild(script);
-});
-}
-        </script>
-        </body>
-    </html>`;
+        return new Promise(function(resolve) {
+            const script = document.createElement("script");
+            script.setAttribute("type", "text/javascript");
+            script.setAttribute("src", url);
+            script.addEventListener("load", function() {
+                resolve(true);
+            });
+            document.body.appendChild(script);
+        });
+    }
+</script>
+</body>
+</html>`;
     }
   };
   var plugin_default = plugin;
