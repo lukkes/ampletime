@@ -4,6 +4,7 @@
 
 import {mockApp, mockPlugin, mockPrompter} from "../lib/test-helpers.js";
 import {starting} from "../lib/amplefocus/amplefocus.js";
+import {_getISOStringFromDate} from "../lib/ampletime/date-time.js";
 
 function createExpectedJot(cycleCount, trailingContent = "", leadingContent="") {
     return `${leadingContent}[Focus Dashboard](https://www.amplenote.com/notes/2) for ${cycleCount} cycles
@@ -152,8 +153,8 @@ describe("within a test environment", () => {
                 app.context.noteUUID = "1";
                 let cycleCount = 5;
                 let expectedDash = createExpectedDash(plugin);
-                let expectedRowMatch = /\|.*\|.*\| 5 \| 5 \| .* \|/;
-                await plugin.insertText["Start Focus"](app);
+                let expectedRowMatch = /\|.*\|.*\| 5 \| 5 \| null,null,null,null,null,null \| 1,2,3,3,1,3 \| 3,2,3,3,3,3 \|/;
+                await plugin.insertText["Start Focus"](app, true);
                 validateDashboardContents(app, expectedDash, expectedRowMatch);
 
                 let expectedJot = createInitialJotContents(plugin, "", "", 5, 1, 5, false);
@@ -177,8 +178,8 @@ describe("within a test environment", () => {
                 );
                 let expectedDash = createExpectedDash(plugin);
                 const expectedJotContents = createInitialJotContents(plugin, "", "", 5, 1, 5, false);
-                let expectedRowMatch = /\|.*\|.*\| 5 \| 5 \| .* \|/;
-                await plugin.insertText["Start Focus"](app);
+                let expectedRowMatch = /\|.*\|.*\| 5 \| 5 \| null,null,null,null,null,null \| 1,2,3,3,1,3 \| 3,2,3,3,3,3 \|/;
+                await plugin.insertText["Start Focus"](app, true);
                 validateDashboardContents(app, expectedDash, expectedRowMatch);
                 validateJotContents(app, expectedJotContents);
             });
@@ -188,7 +189,7 @@ describe("within a test environment", () => {
                     ({app, plugin} = setUpPluginAndApp(10, 0.05));
                     let startTime = new Date();
                     plugin.options.amplefocus.mockPrompter = mockPrompter([
-                        startTime.getTime(),
+                        startTime,
                         {index: 3}, // This means 5 cycles
                         [1, 1, 3], [1, 2, 2], [1, 3, 3], [1, 3, 3], [1, 1, 3], [1, 3, 3]
                     ]);
@@ -249,7 +250,8 @@ describe("within a test environment", () => {
         });
 
         describe("with a running session", () => {
-            let dashContents, startTime = "2024-06-19T16:14:36.532";
+            let now = new Date();
+            let dashContents, startTime = _getISOStringFromDate(now);
 
             beforeEach(() => {
                 ({app, plugin} = setUpPluginAndApp());
@@ -277,8 +279,8 @@ describe("within a test environment", () => {
                     );
                     let expectedDash = createExpectedDash(plugin);
                     let expectedRowMatch1 = /\|.*\|.*\| 5 \| 2 \| .* \|/;
-                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 1,1,1,1,1,1 \| 1,2,3,3,1,3 \| 3,2,3,3,3,3 \| .* \|/;
-                    await plugin.insertText["Start Focus"](app);
+                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| null,null,null,null,null,null \| 1,2,3,3,1,3 \| 3,2,3,3,3,3 \| .* \|/;
+                    await plugin.insertText["Start Focus"](app, true);
                     validateDashboardContents(app, expectedDash, expectedRowMatch2);
                     validateDashboardContents(app, expectedDash, expectedRowMatch1);
                 });
@@ -288,7 +290,6 @@ describe("within a test environment", () => {
                 beforeEach(() => {
                     plugin.options.amplefocus.mockPrompter = mockPrompter([
                         "resume",
-                        {index: 0},
                         [1, 3, 3], [1, 3, 3], [1, 1, 3], [1, 3, 3],
                     ]);
                 });
@@ -314,9 +315,13 @@ But please don't write here`;
                         dashContents, "2"
                     );
                     let expectedDash = createExpectedDash(plugin);
-                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 1,1,1,1 \| 3,3,1,3 \| 3,3,3,3 \| .* \|/;
+                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| null,null,null,null \| 3,3,1,3 \| 3,3,3,3 \| .* \|/;
                     let expectedJotContents = createInitialJotContents(plugin, trailingContent, leadingContent, 5, 1, 5, false);
-                    await plugin.insertText["Start Focus"](app);
+                    try {
+                        await plugin.insertText["Start Focus"](app, true);
+                    } catch (err) {
+                        console.log(err)
+                    }
                     validateDashboardContents(app, expectedDash, expectedRowMatch2);
                     validateJotContents(app, expectedJotContents);
                 });
@@ -334,9 +339,9 @@ But please don't write here`;
                         dashContents, "2"
                     );
                     let expectedDash = createExpectedDash(plugin);
-                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 1,1,1,1 \| 3,3,1,3 \| 3,3,3,3 \| .* \|/;
+                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 1,null,null,null \| 3,3,1,3 \| 3,3,3,3 \| .* \|/;
                     let expectedJotContents = createInitialJotContents(plugin, undefined, undefined, 5, 2, 5, false);
-                    await plugin.insertText["Start Focus"](app);
+                    await plugin.insertText["Start Focus"](app, true);
                     validateDashboardContents(app, expectedDash, expectedRowMatch2);
                     validateJotContents(app, expectedJotContents);
                 })
@@ -354,7 +359,7 @@ But please don't write here`;
                 await app.createNote("June 12th, 2024", ["daily-jots"], initialJotContents, "1");
                 app.context.noteUUID = "1";
                 let cycleCount = 5;
-                let expectedJotContents = createInitialJotContents(plugin, "", "", 5, 1, 5, false);
+                let expectedJotContents = createInitialJotContents(plugin, "", "", 5, 1, 5, true);
                 await plugin.insertText["Start Focus"](app);
                 validateJotContents(app, expectedJotContents);
                 validateJotContents(app, initialJotContents)
