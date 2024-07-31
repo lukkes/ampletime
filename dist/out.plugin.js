@@ -356,8 +356,11 @@ ${dataRows}`;
   }
   function getCycleTarget(options, cycleContents) {
     let start, end;
-    start = cycleContents.indexOf(`${options.cycleStartQuestions[0]}
-`) + options.cycleStartQuestions[0].length;
+    let match = cycleContents.indexOf(`${options.cycleStartQuestions[0]}
+`);
+    if (match === -1)
+      return false;
+    start = match + options.cycleStartQuestions[0].length;
     end = cycleContents.indexOf(`- ${options.cycleStartQuestions[1]}`);
     return cycleContents.slice(start, end).trim();
   }
@@ -576,7 +579,7 @@ ${dataRows}`;
     console.log(`STATE: ${state} => ${newState}`);
     state = newState;
   }
-  var currentCycle;
+  var currentSessionCycle;
   var sessionCycleCount;
   var sessionStartTime;
   var sessionEndTime;
@@ -656,6 +659,10 @@ ${dataRows}`;
         }
       );
       if (result === "resume") {
+        await _appendToNote(app, "");
+        sessionCycleCount = isSessionRunning["Cycle Count"];
+        sessionStartTime = new Date(isSessionRunning["Start Time"]);
+        sessionEndTime = _calculateEndTime(options, sessionStartTime, sessionCycleCount);
         let oldStartTime = new Date(isSessionRunning["Start Time"]);
         if (_calculateEndTime(options, oldStartTime, isSessionRunning["Cycle Count"]) > _getCurrentTime()) {
           console.log("Continuing previous uncompleted session.");
@@ -734,7 +741,9 @@ ${dataRows}`;
     console.log("Starting focus cycle...");
     if (!firstCycle)
       firstCycle = 1;
-    let sessionHeadingName, workEndTime, breakEndTime, prompt;
+    let sessionHeadingName, workEndTime, breakEndTime, prompt, firstCycleStartTime;
+    firstCycleStartTime = _calculateEndTime(options, startTime, firstCycle - 1);
+    firstCycleStartTime = new Date(firstCycleStartTime.getTime() + options.breakDuration);
     if (resume) {
       sessionHeadingName = await findSessionHeadingName(startTime, app);
       markAddress(sessionHeadingName, app.context.noteUUID);
@@ -747,21 +756,26 @@ ${dataRows}`;
       prompt = true;
       status = "Waiting for session to start...";
     }
-    workEndTime = new Date(startTime.getTime() - options.breakDuration);
-    breakEndTime = startTime;
+    workEndTime = new Date(firstCycleStartTime.getTime() - options.breakDuration);
+    breakEndTime = firstCycleStartTime;
     console.log("Work end time", workEndTime);
     console.log(`firstCycle: ${firstCycle}, cycles: ${cycles}`, firstCycle, cycles);
-    for (let currentCycle2 = firstCycle - 1; currentCycle2 <= cycles; currentCycle2++) {
-      console.log("Cycle loop", currentCycle2);
+    for (let currentCycle = firstCycle - 1; currentCycle <= cycles; currentCycle++) {
+      currentSessionCycle = currentCycle;
+      console.log("Cycle loop", currentCycle);
       try {
-        await _handleWorkPhase(app, workEndTime, currentCycle2);
+        await _handleWorkPhase(app, workEndTime, currentCycle);
       } catch (error) {
         if (handleAbortSignal(error))
           break;
       }
-      status = "Take a break...";
+      if (currentCycle >= 1)
+        status = "Take a break...";
       try {
-        await _handleBreakPhase(app, options, dash, breakEndTime, currentCycle2, cycles, handlePastCycles);
+        if (currentCycle >= firstCycle) {
+          prompt = true;
+        }
+        await _handleBreakPhase(app, options, dash, breakEndTime, currentCycle, cycles, handlePastCycles, prompt);
       } catch (error) {
         if (handleAbortSignal(error))
           break;
@@ -835,16 +849,16 @@ ${dataRows}`;
       throw error;
     }
   }
-  async function _getPastCycleTarget(app, currentCycle2, options) {
+  async function _getPastCycleTarget(app, currentCycle, options) {
     let noteContent = await app.getNoteContent({ uuid: sessionNoteUUID });
-    let cycleTarget = await _getSessionSubHeading(app, `Cycle ${currentCycle2}`);
+    let cycleTarget = await _getSessionSubHeading(app, `Cycle ${currentCycle}`);
     let headingContent = await _sectionContent(noteContent, cycleTarget);
     return getCycleTarget(options, headingContent);
   }
-  async function _handleCycleEnd(options, app, currentCycle2) {
+  async function _promptCycleEndMetrics(options, app, currentCycle) {
     let completion, energy, morale, cycleTarget;
-    if (currentCycle2 >= 1) {
-      cycleTarget = await _getPastCycleTarget(app, currentCycle2, options);
+    if (currentCycle >= 1) {
+      cycleTarget = await _getPastCycleTarget(app, currentCycle, options);
       [completion, energy, morale] = await _promptCompletionEnergyMorale(
         app,
         "Work phase completed. Did you complete the target for this cycle?",
@@ -865,7 +879,7 @@ ${dataRows}`;
     }
     return [completion, energy, morale];
   }
-  async function _logCycleEndValues(app, dash, energy, morale, completion, options) {
+  async function _logDashboardCycleEndMetrics(app, dash, energy, morale, completion, options) {
     let tableDict = await _readDasbhoard(app, dash);
     tableDict = await _appendToTopTableCell(tableDict, "Energy Logs", energy);
     tableDict = await _appendToTopTableCell(tableDict, "Morale Logs", morale);
@@ -895,40 +909,45 @@ ${content}`);
     content = content.join("\n");
     await appendToHeading(app, "Session debrief", content);
   }
-  async function _handleCycleEndDashboardEntry(app, dash, currentCycle2, options) {
+  async function _logDashboardCycleProgress(app, dash, currentCycle, options) {
     let dashTable = await _readDasbhoard(app, dash);
-    dashTable = _editTopTableCell(dashTable, "Cycle Progress", currentCycle2);
+    dashTable = _editTopTableCell(dashTable, "Cycle Progress", currentCycle);
     await writeDashboard(app, options, dash, dashTable);
   }
-  async function _handleCycleEndJotEntry(options, app, currentCycle2) {
+  async function _handleCycleEndJotEntry(options, app, currentCycle) {
     let content = [`- Cycle debrief:`];
     for (let question of options.cycleEndQuestions) {
       content.push(`  - ${question}`);
     }
     content = content.join("\n");
-    await appendToCycleHeading(app, `Cycle ${currentCycle2}`, `
+    await appendToCycleHeading(app, `Cycle ${currentCycle}`, `
 ${content}`);
   }
-  async function _handleCycleLogs(currentCycle2, app, dash, options, cycles, nextCycle) {
-    if (currentCycle2 >= 1) {
-      await _handleCycleEndJotEntry(options, app, currentCycle2);
+  async function _logJotPreviousAndNextCycleQuestions(previousCycle, app, dash, options, cycles, currentCycle) {
+    if (previousCycle >= 1) {
+      await _handleCycleEndJotEntry(options, app, previousCycle);
     }
-    if (currentCycle2 < cycles) {
-      await _handleNextCycleStart(app, nextCycle, options);
+    if (previousCycle < cycles) {
+      await _handleNextCycleStart(app, currentCycle, options);
     }
   }
-  async function _handleBreakPhase(app, options, dash, breakEndTime, cycleIndex, cycles, handlePastCylces = false) {
-    let currentCycle2, nextCycle, energy, morale, completion;
+  async function _handleBreakPhase(app, options, dash, breakEndTime, cycleIndex, cycles, handlePastCylces = false, prompt = true) {
+    let previousCycle, currentCycle, energy, morale, completion;
     let currentTime = _getCurrentTime();
-    currentCycle2 = cycleIndex;
-    nextCycle = cycleIndex + 1;
-    await _handleCycleEndDashboardEntry(app, dash, currentCycle2, options);
-    if (breakEndTime > currentTime || handlePastCylces) {
-      await _handleCycleLogs(currentCycle2, app, dash, options, cycles, nextCycle);
-      [completion, energy, morale] = await _handleCycleEnd(options, app, currentCycle2);
-      await _logCycleEndValues(app, dash, energy, morale, completion, options);
+    previousCycle = cycleIndex;
+    currentCycle = cycleIndex + 1;
+    await _logDashboardCycleProgress(app, dash, previousCycle, options);
+    let currentCycleEndTime = new Date(breakEndTime.getTime() + options.workDuration);
+    if (currentCycleEndTime > currentTime || handlePastCylces) {
+      if (prompt) {
+        await _logJotPreviousAndNextCycleQuestions(previousCycle, app, dash, options, cycles, currentCycle);
+        [completion, energy, morale] = await _promptCycleEndMetrics(options, app, previousCycle);
+        await _logDashboardCycleEndMetrics(app, dash, energy, morale, completion, options);
+      }
+    } else {
+      await _logDashboardCycleEndMetrics(app, dash, null, null, null, options);
     }
-    if (currentCycle2 === cycles) {
+    if (previousCycle === cycles) {
       await _handleSessionDebrief(app, options);
       await _sleepUntil(app, /* @__PURE__ */ new Date());
       console.log(`Session complete.`);
@@ -937,15 +956,15 @@ ${content}`);
     if (breakEndTime <= currentTime) {
       return;
     }
-    if (currentCycle2 < cycles) {
-      console.log(`Cycle ${currentCycle2}: Starting break phase...`);
+    if (previousCycle < cycles) {
+      console.log(`Cycle ${previousCycle}: Starting break phase...`);
       try {
         await _sleepUntil(app, breakEndTime);
       } catch (error) {
         throw error;
       }
-      app.alert(`Cycle ${currentCycle2}: Break phase completed. Start working!`);
-      console.log(`Cycle ${currentCycle2}: Break phase completed.`);
+      app.alert(`Cycle ${previousCycle}: Break phase completed. Start working!`);
+      console.log(`Cycle ${previousCycle}: Break phase completed.`);
     }
   }
   async function _sleepUntil(app, endTime, bell = false) {
@@ -954,7 +973,7 @@ ${content}`);
       ampletime: { project: null },
       amplefocus: {
         sleepUntil: endTime,
-        currentCycle,
+        currentCycle: currentSessionCycle,
         cycleCount: sessionCycleCount,
         sessionEnd: sessionEndTime,
         status,
@@ -1570,6 +1589,7 @@ ${content}`);
           "Any hazards? How will I counter them?"
         ],
         cycleEndQuestions: [
+          "Did you complete the cycle's targets? If not, what went wrong?",
           "Any distractions?",
           "What should I improve for the next cycle?"
         ],
