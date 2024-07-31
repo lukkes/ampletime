@@ -76,12 +76,12 @@ function setUpPluginAndApp(workDuration = 0.1, breakDuration = 0.05) {
     return {app, plugin};
 }
 
-function createRunningSessionDash(plugin, startTime) {
+function createRunningSessionDash(plugin, startTime, cycleProgress=2) {
     return `## ${plugin.options.amplefocus.sectionTitleDashboardEntries}
 |${" |".repeat(plugin.options.amplefocus.dashboardColumns.length)}
 |${"-|".repeat(plugin.options.amplefocus.dashboardColumns.length)}
 | ${plugin.options.amplefocus.dashboardColumns.join(" | ")} |
-| [June 12th, 2024](https://www.amplenote.com/notes/1) | ${startTime} | 5 | 2 |  |`;
+| [June 12th, 2024](https://www.amplenote.com/notes/1) | ${startTime} | 5 | ${cycleProgress} |  |`;
 }
 
 function createInitialJotContents(plugin, trailingContent="", leadingContent="", cycleCount=5, firstCycle = 1, currentCycle=2, filler=true){
@@ -250,11 +250,13 @@ describe("within a test environment", () => {
         });
 
         describe("with a running session", () => {
-            let now = new Date();
-            let dashContents, startTime = _getISOStringFromDate(now);
+            let now;
+            let dashContents, startTime;
 
             beforeEach(() => {
                 ({app, plugin} = setUpPluginAndApp());
+                now = new Date();
+                startTime = _getISOStringFromDate(now);
                 dashContents = createRunningSessionDash(plugin, startTime);
             });
 
@@ -288,6 +290,8 @@ describe("within a test environment", () => {
 
             describe("if the user resumes the open session", () => {
                 beforeEach(() => {
+                    now = new Date();
+                    startTime = _getISOStringFromDate(now);
                     plugin.options.amplefocus.mockPrompter = mockPrompter([
                         "resume",
                         [1, 3, 3], [1, 3, 3], [1, 1, 3], [1, 3, 3],
@@ -306,7 +310,7 @@ This is some text without a heading per se
 But please don't write here`;
                     const leadingContent = `Some unrelated text
 # \\[${startTime.slice(11, 16)}\\]`;
-                    const initialJotContents = createInitialJotContents(plugin, trailingContent, leadingContent, 5, 1, 2, false);
+                    const initialJotContents = createInitialJotContents(plugin, trailingContent, leadingContent, 5, 1, 3, false);
                     await app.createNote("June 12th, 2024", ["daily-jots"], initialJotContents, "1");
                     app.context.noteUUID = "1";
                     let cycleCount = 5;
@@ -315,13 +319,9 @@ But please don't write here`;
                         dashContents, "2"
                     );
                     let expectedDash = createExpectedDash(plugin);
-                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| null,null,null,null \| 3,3,1,3 \| 3,3,3,3 \| .* \|/;
+                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| null,null,null \| 3,3,1 \| 3,3,3 \| .* \|/;
                     let expectedJotContents = createInitialJotContents(plugin, trailingContent, leadingContent, 5, 1, 5, false);
-                    try {
-                        await plugin.insertText["Start Focus"](app, true);
-                    } catch (err) {
-                        console.log(err)
-                    }
+                    await plugin.insertText["Start Focus"](app, true);
                     validateDashboardContents(app, expectedDash, expectedRowMatch2);
                     validateJotContents(app, expectedJotContents);
                 });
@@ -329,17 +329,18 @@ But please don't write here`;
                 it("should create a heading again if missing", async () => {
                     const leadingContent = `Some unrelated text
 # \\[${startTime.slice(11, 16)}\\]`;
-                    let initialJotContents = createInitialJotContents(plugin, "", leadingContent, 5, 1, 0, false);
-                    initialJotContents = initialJotContents.split("\n").slice(0, 15).join("\n");
+                    let initialJotContents = createInitialJotContents(plugin, "", leadingContent, 5, 1, 2, false);
+                    initialJotContents = initialJotContents.split("\n").slice(0, 8).join("\n");
                     await app.createNote("June 12th, 2024", ["daily-jots"], initialJotContents, "1");
                     app.context.noteUUID = "1";
                     let cycleCount = 5;
+                    dashContents = createRunningSessionDash(plugin, startTime, 1);
                     await app.createNote(
                         plugin.options.amplefocus.noteTitleDashboard, [plugin.options.amplefocus.noteTagDashboard],
                         dashContents, "2"
                     );
                     let expectedDash = createExpectedDash(plugin);
-                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| 1,null,null,null \| 3,3,1,3 \| 3,3,3,3 \| .* \|/;
+                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| null,null,null,null \| 3,3,1,3 \| 3,3,3,3 \| .* \|/;
                     let expectedJotContents = createInitialJotContents(plugin, undefined, undefined, 5, 2, 5, false);
                     await plugin.insertText["Start Focus"](app, true);
                     validateDashboardContents(app, expectedDash, expectedRowMatch2);
