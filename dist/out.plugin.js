@@ -438,8 +438,8 @@ ${dataRows}`;
     console.log("Generating cycle options...");
     const cycleOptions = [];
     for (let cycles = 2; cycles <= 8; cycles++) {
-      const endTime = _calculateEndTime(options, startTime, cycles);
-      const label = `${cycles} cycles (until ${_formatAsTime(endTime)})`;
+      const { endTime, totalHours, totalMinutes } = _calculateEndTime(options, startTime, cycles);
+      const label = `${cycles} cycles (${totalHours} hours ${totalMinutes} minutes, until ${_formatAsTime(endTime)})`;
       cycleOptions.push({ label, value: cycles });
     }
     console.log("Cycle options generated.");
@@ -659,9 +659,9 @@ ${dataRows}`;
         await _appendToNote(app, "");
         sessionCycleCount = isSessionRunning["Cycle Count"];
         sessionStartTime = new Date(isSessionRunning["Start Time"]);
-        sessionEndTime = _calculateEndTime(options, sessionStartTime, sessionCycleCount);
+        sessionEndTime = _calculateEndTime(options, sessionStartTime, sessionCycleCount).endTime;
         let oldStartTime = new Date(isSessionRunning["Start Time"]);
-        if (_calculateEndTime(options, oldStartTime, isSessionRunning["Cycle Count"]) > _getCurrentTime()) {
+        if (_calculateEndTime(options, oldStartTime, isSessionRunning["Cycle Count"]).endTime > _getCurrentTime()) {
           console.log("Continuing previous uncompleted session.");
           await _startSession(
             app,
@@ -702,7 +702,7 @@ ${dataRows}`;
   async function _focus(app, options, dash, startTime, cycleCount, handlePastCycles = false) {
     sessionCycleCount = cycleCount;
     sessionStartTime = startTime;
-    sessionEndTime = _calculateEndTime(options, startTime, cycleCount);
+    sessionEndTime = _calculateEndTime(options, startTime, cycleCount).endTime;
     const newRow = {
       // "Session ID": Math.max(dash.map(e => e["Session ID"])) + 1,
       "Source Note": _makeNoteLink(await app.findNote({ uuid: app.context.noteUUID })),
@@ -739,8 +739,7 @@ ${dataRows}`;
     if (!firstCycle)
       firstCycle = 1;
     let sessionHeadingName, workEndTime, breakEndTime, prompt, firstCycleStartTime;
-    firstCycleStartTime = _calculateEndTime(options, startTime, firstCycle - 1);
-    firstCycleStartTime = new Date(firstCycleStartTime.getTime() + options.breakDuration);
+    firstCycleStartTime = _calculateEndTime(options, startTime, firstCycle - 1).endTime;
     if (resume) {
       sessionHeadingName = await findSessionHeadingName(startTime, app);
       markAddress(sessionHeadingName, app.context.noteUUID);
@@ -815,10 +814,14 @@ ${dataRows}`;
     console.log("Calculating end time for given start time and cycles...");
     const totalTime = (options.workDuration + options.breakDuration) * cycles;
     const endTime = new Date(startTime.getTime() + totalTime);
+    const totalMinutes = Math.floor(totalTime / 6e4) % 60;
+    const totalHours = Math.floor(totalTime / 36e5);
     console.log("Start time:", new Date(startTime));
     console.log("Cycles:", cycles);
     console.log("End time calculated:", _formatAsTime(endTime));
-    return endTime;
+    console.log("Total hours:", totalHours);
+    console.log("Total minutes:", totalMinutes);
+    return { endTime, totalHours, totalMinutes };
   }
   function handleAbortSignal(error) {
     if (error.name === "AbortError") {
