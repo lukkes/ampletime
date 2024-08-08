@@ -756,7 +756,7 @@ ${dataRows}`;
       prompt = true;
       status = "Waiting for session to start...";
     }
-    workEndTime = new Date(firstCycleStartTime.getTime() - options.breakDuration);
+    workEndTime = /* @__PURE__ */ new Date();
     breakEndTime = firstCycleStartTime;
     console.log("Work end time", workEndTime);
     console.log(`firstCycle: ${firstCycle}, cycles: ${cycles}`, firstCycle, cycles);
