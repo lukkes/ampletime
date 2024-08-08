@@ -1787,7 +1787,12 @@ ${content}`);
           let note = this.noteUUID;
           let noteHandle = await app.findNote({ uuid: note });
           let base64Image = args[1];
-          fetch(base64Image).then((res) => res.blob()).then((blob) => _dataURLFromBlob(blob)).then((dataURL) => app.attachNoteMedia(noteHandle, dataURL)).then((fileURL) => appendToHeading(app, "Session debrief", `![](${fileURL})`));
+          let res = await fetch(base64Image);
+          let blob = await res.blob();
+          await app.alert("\u{1F389} Your graph was copied to the clipboard (and inserted into your session debrief)");
+          let _dataURL = await _dataURLFromBlob(blob);
+          let fileURL = await app.attachNoteMedia(noteHandle, _dataURL);
+          await appendToHeading(app, "Session debrief", `![](${fileURL})`);
         }
       }
     },
@@ -2026,9 +2031,18 @@ ${content}`);
 <script>
     let chartInstance; // Global variable to hold the chart instance
     
-    document.getElementById('share-text').addEventListener('click', function() {
+    document.getElementById('share-text').addEventListener('click', async function() {
         const myChart = chartInstance; // Assuming chartInstance is your Chart.js instance
         const base64Image = myChart.toBase64Image();
+        let res = await fetch(base64Image);
+        let blob = await res.blob();
+        const item = new ClipboardItem({ 'image/png': blob });
+        navigator.clipboard.write([item]).then(function() {
+          console.log('Graph copied to clipboard!');
+        }).catch(function(error) {
+          console.error('Error copying graph to clipboard: ', error);
+        });
+
         window.callAmplenotePlugin("clipboard", base64Image);
     });
 
