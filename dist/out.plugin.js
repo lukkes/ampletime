@@ -482,7 +482,7 @@ ${dataRows}`;
         { label: "Medium", value: 0 },
         { label: "High", value: 1 }
       ],
-      value: 0
+      value: null
     });
     promptInput.push({
       label: "Morale (how are you feeling mentally, with respect to the work?)",
@@ -492,7 +492,7 @@ ${dataRows}`;
         { label: "Medium", value: 0 },
         { label: "High", value: 1 }
       ],
-      value: 0
+      value: null
     });
     let result = await app.prompt(
       message,
@@ -502,18 +502,15 @@ ${dataRows}`;
     );
     let completion, energy, morale;
     if (result === null) {
-      completion = false;
-      energy = 0;
-      morale = 0;
-    } else {
+      completion = null;
+      energy = null;
+      morale = null;
+    } else if (result.length === 3) {
+      completion = null;
+      [energy, morale] = result;
+    } else if (result.length === 4) {
       [completion, energy, morale] = result;
     }
-    if (!energy)
-      energy = 0;
-    if (!morale)
-      morale = 0;
-    if (!promptCompletion)
-      completion = null;
     return [completion, energy, morale];
   }
   async function _promptInput(app, options) {
