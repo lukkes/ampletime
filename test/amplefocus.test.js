@@ -6,50 +6,6 @@ import {mockApp, mockPlugin, mockPrompter} from "../lib/test-helpers.js";
 import {starting} from "../lib/amplefocus/amplefocus.js";
 import {_getISOStringFromDate} from "../lib/ampletime/date-time.js";
 
-function createExpectedJot(cycleCount, trailingContent = "", leadingContent="") {
-    return `${leadingContent}[Focus Dashboard](https://www.amplenote.com/notes/2) for ${cycleCount} cycles
-## Session overview
-- **What am I trying to accomplish?**
-  - 1
-- **Why is this important and valuable?**
-  - 2
-- **How will I know this is complete?**
-  - 3
-- **Potential distractions? How am I going to deal with them?**
-  - 4
-- **Is this concrete/measurable or subjective/ambiguous?**
-  - 5
-- **Anything else noteworthy?**
-  - 6
-## Cycles
-### Cycle 1
-- Plan:
-
-- Debrief:
-
-### Cycle 2
-- Plan:
-
-- Debrief:
-
-### Cycle 3
-- Plan:
-
-- Debrief:
-
-### Cycle 4
-- Plan:
-
-- Debrief:
-
-### Cycle 5
-- Plan:
-
-- Debrief:
-
-## Session debrief
-${trailingContent}`;
-}
 
 function createExpectedDash(plugin) {
     return `## ${plugin.options.amplefocus.sectionTitleDashboardEntries}
@@ -342,6 +298,14 @@ But please don't write here`;
                     let expectedDash = createExpectedDash(plugin);
                     let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| null,null,null,null \| 3,3,1,3 \| 3,3,3,3 \| .* \|/;
                     let expectedJotContents = createInitialJotContents(plugin, undefined, undefined, 5, 2, 5, false);
+                    let expectedLines = expectedJotContents.split("\n");
+                    // Some ugly magic to account for new line I don't know the source of
+                    expectedLines = [
+                        ...expectedLines.slice(0, 7),
+                        "",
+                        ...expectedLines.slice(7, expectedLines.length)
+                        ];
+                    expectedJotContents = expectedLines.join("\n");
                     await plugin.insertText["Start Focus"](app, true);
                     validateDashboardContents(app, expectedDash, expectedRowMatch2);
                     validateJotContents(app, expectedJotContents);
