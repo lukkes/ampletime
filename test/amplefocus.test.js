@@ -250,7 +250,7 @@ describe("within a test environment", () => {
                     startTime = _getISOStringFromDate(now);
                     plugin.options.amplefocus.mockPrompter = mockPrompter([
                         "resume",
-                        [3, 3, 3], [3, 3, 3], [1, 3, 3], [2, 3, 3], [3, 3, 3]
+                        [3, 3, 3], [3, 3, 3], [1, 3, 3], [3, 3, 3], [3, 3, 3]
                     ]);
                 });
 
@@ -296,7 +296,7 @@ But please don't write here`;
                         dashContents, "2"
                     );
                     let expectedDash = createExpectedDash(plugin);
-                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| null,null,null,null \| 3,3,1,2 \| 3,3,3,3 \| .* \|/;
+                    let expectedRowMatch2 = /\|.*\|.*\| 5 \| 5 \| null,null,null,null \| 3,3,1,3 \| 3,3,3,3 \| .* \|/;
                     let expectedJotContents = createInitialJotContents(plugin, undefined, undefined, 5, 2, 5, false);
                     let expectedLines = expectedJotContents.split("\n");
                     // Some ugly magic to account for new line I don't know the source of
