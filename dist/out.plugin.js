@@ -1595,12 +1595,31 @@ ${content}`);
         ],
         finalQuestions: [
           "What did I get done in this session?",
+          "What should I work on during the next session?",
           "Did I get bogged down? Where?",
           "Want went well in this session? How can I make sure to replicate this in the future?"
         ]
       }
     },
     noteUUID: null,
+    appOption: {
+      "Reopen timer in sidebar": async function(app) {
+        console.log("Reopening timer in sidebar...");
+        app.openSidebarEmbed(0.66, {
+          ampletime: { project: null },
+          amplefocus: {
+            sleepUntil,
+            currentCycle: currentSessionCycle,
+            cycleCount: sessionCycleCount,
+            sessionEnd: sessionEndTime,
+            status,
+            moraleValues,
+            energyValues,
+            completionValues
+          }
+        });
+      }
+    },
     //===================================================================================
     // ===== APP OPTIONS ====
     //===================================================================================
