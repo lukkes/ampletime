@@ -615,7 +615,7 @@ ${dataRows}`;
       };
     });
   }
-  function initAmplefocus() {
+  function initAmplefocus(app, options) {
     moraleValues = [];
     energyValues = [];
     completionValues = [];
@@ -627,6 +627,13 @@ ${dataRows}`;
         resolve();
       };
     });
+    for (let pair of Object.entries(options.settings)) {
+      let setting = pair[0];
+      let option = pair[1];
+      if (app.settings[setting]) {
+        options[option] = app.settings[setting] * 60 * 1e3;
+      }
+    }
     markStopped();
   }
   async function _preStart(app, options, handlePastCycles) {
@@ -783,11 +790,11 @@ ${dataRows}`;
         timerController = new AbortController();
       }
     }
+    status = "Session finished. \u{1F389}";
     if (state !== "PAUSED") {
       await _writeEndTime(app, options, dash);
-      status = "Session paused...";
     } else {
-      status = "Session finished. \u{1F389}";
+      status = "Session paused...";
     }
   }
   async function _makeSessionHeading(app, startTime, cycleCount) {
@@ -895,6 +902,7 @@ ${dataRows}`;
     for (let question of options.cycleStartQuestions) {
       content.push(`  - ${question}`);
     }
+    content.push(`- Your notes:`);
     content = content.join("\n");
     await appendToCycleHeading(app, `Cycle ${nextCycle}`, `
 ${content}`);
@@ -1551,6 +1559,10 @@ ${content}`);
         alwaysStopRunningTask: false
       },
       amplefocus: {
+        settings: {
+          "Work phase duration (in minutes)": "workDuration",
+          "Break phase duration (in minutes)": "breakDuration"
+        },
         noteTitleDashboard: "Focus Dashboard",
         noteTagDashboard: "amplework/focus",
         sectionTitleDashboardEntries: "Sessions",
@@ -1568,11 +1580,9 @@ ${content}`);
           // Comma-separated values
           "End Time"
         ],
-        workDuration: 30 * 1e3,
+        workDuration: 30 * 60 * 1e3,
         // ms
-        breakDuration: 10 * 1e3,
-        // ms
-        updateInterval: 10 * 1e3,
+        breakDuration: 10 * 60 * 1e3,
         // ms
         alwaysStopRunningTask: false,
         alwaysResumeOpenTask: false,
@@ -1766,7 +1776,7 @@ ${content}`);
         try {
           console.log("Starting Amplefocus...");
           this.noteUUID = app.context.noteUUID;
-          initAmplefocus();
+          initAmplefocus(app, this.options.amplefocus);
           let dash = await _preStart(app, this.options.amplefocus, handlePastCycles);
           if (!dash)
             return;
